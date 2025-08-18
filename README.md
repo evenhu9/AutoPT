@@ -1,6 +1,8 @@
-# Code for the paper "AutoPT: How Far Are We from the End2End Automated Web Penetration Testing?"
+AutoPT
 
-This anonymous library is set up for double-blind review. We will open source it after review.
+Our paper, "AutoPT: How Far Are We From the Fully Automated Web Penetration Testing?", was accepted by IEEE T-IFS.
+
+We will soon publish the code.
 
 ## Legal and Ethical Statement
 

@@ -1,4 +1,4 @@
-AutoPT
+# AutoPT
 
 Our paper, "AutoPT: How Far Are We From the Fully Automated Web Penetration Testing?", was accepted by IEEE T-IFS.
 

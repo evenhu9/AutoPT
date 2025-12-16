@@ -345,14 +345,6 @@ os.environ["LANGCHAIN_PROJECT"] = "your-project-name"
 os.environ["LANGCHAIN_API_KEY"] = "your-langsmith-api-key"
 ```
 
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 📄 许可证
-
-请遵守相关开源协议。
-
 ## ⚠️ 法律与道德声明
 
 **重要**: 本项目仅用于系统安全研究和教育目的。
@@ -361,11 +353,6 @@ os.environ["LANGCHAIN_API_KEY"] = "your-langsmith-api-key"
 - 未经授权的渗透测试
 - 任何非法活动
 - 攻击未获得明确授权的系统
-
-**使用者责任：**
-- 使用本工具前必须获得目标系统所有者的明确授权
-- 使用者需自行承担使用本工具产生的一切法律责任
-- 开发者不对任何滥用行为负责
 
 **请遵守当地法律法规，做一个负责任的安全研究者。**
 
@@ -382,6 +369,3 @@ os.environ["LANGCHAIN_API_KEY"] = "your-langsmith-api-key"
 }
 ```
 
-## 📧 联系方式
-
-如有问题或建议，请通过GitHub Issues联系我们。

@@ -153,19 +153,14 @@ AutoPT核心类，包含：
 
 ### 安装步骤
 
-1. **克隆仓库**
+1. **克隆仓库并安装依赖**
 ```bash
 git clone https://github.com/evenhu9/AutoPT.git
-cd AutoPT
-```
-
-2. **安装依赖**
-```bash
 cd AutoPT
 pip install -r requirements.txt
 ```
 
-3. **配置API密钥**
+2. **配置API密钥**
 
 编辑 `AutoPT/config/config.yml` 文件：
 
@@ -196,7 +191,7 @@ psm:
   draw_graph: False       # 是否生成状态机图
 ```
 
-4. **配置测试环境**
+3. **配置测试环境**
 
 需要配置一个运行xray等渗透测试工具的Docker环境。默认连接配置在 `terminal.py` 中：
 

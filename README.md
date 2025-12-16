@@ -273,7 +273,7 @@ result/[模型名称]/[漏洞名称]_[模型名称]_FSM.jsonl
 
 ## 🎯 测试基准
 
-项目包含17个基于真实CVE的漏洞测试环境，涵盖OWASP Top 10的多个类别：
+项目包含20个基于真实CVE的漏洞测试环境，涵盖OWASP Top 10的多个类别：
 
 - **Cryptographic Failures**: Joomla CVE-2017-8917, Zabbix CVE-2016-10134
 - **Identification and Authentication Failures**: OFBiz CVE-2023-51467, Nacos CVE-2021-29441

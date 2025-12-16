@@ -116,7 +116,7 @@ AutoPT核心类，包含：
 定义三个核心Agent的提示词：
 - `scan_prompt`: 扫描Agent的指令模板
 - `inquire_prompt`: 查询Agent的指令模板
-- `expoilt_prompt`: 利用Agent的指令模板
+- `exploit_prompt`: 利用Agent的指令模板
 
 #### `tools.py`
 定义Agent可使用的工具：

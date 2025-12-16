@@ -2,7 +2,7 @@
 
 基于大语言模型的自动化Web渗透测试工具
 
-[![IEEE T-IFS](https://img.shields.io/badge/Paper-IEEE%20T--IFS-blue)](https://ieeexplore.ieee.org/)
+![IEEE T-IFS](https://img.shields.io/badge/Paper-IEEE%20T--IFS-blue)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen)](https://www.python.org/)
 [![LangChain](https://img.shields.io/badge/LangChain-0.2.15-orange)](https://www.langchain.com/)
 
@@ -18,7 +18,7 @@ AutoPT (Automatic Penetration Testing) 是一个基于大语言模型（LLM）�
 - 🔍 **自动漏洞扫描**: 集成xray等工具进行自动化漏洞发现
 - 💡 **智能决策**: 利用大语言模型进行漏洞分析和利用策略制定
 - 🔧 **多工具集成**: 支持命令行工具、浏览器自动化等多种工具
-- 📊 **完整测试基准**: 包含17个真实CVE漏洞的测试环境
+- 📊 **完整测试基准**: 包含20个真实CVE漏洞的测试环境
 
 ## 🏗️ 系统架构
 
@@ -146,9 +146,56 @@ AutoPT核心类，包含：
 
 ### 环境要求
 
+#### 软件环境
 - Python 3.8+
 - Docker (用于运行测试环境)
 - Ubuntu 22.04 (推荐)
+- SSH服务（用于连接测试容器）
+
+#### 硬件环境
+
+AutoPT的硬件需求取决于运行模式和测试规模：
+
+**最低配置（单个CVE测试）：**
+- **CPU**: 2核心及以上
+- **内存**: 4GB RAM
+  - Python运行环境: ~500MB
+  - Docker容器（单个漏洞环境）: ~512MB-1GB
+  - LLM API调用缓存: ~500MB
+  - 系统开销: ~1GB
+- **存储**: 20GB可用空间
+  - Docker镜像: ~5-10GB
+  - 系统和依赖: ~5GB
+  - 日志和结果文件: ~1GB
+- **网络**: 稳定的互联网连接（用于LLM API调用）
+
+**推荐配置（完整测试基准）：**
+- **CPU**: 4核心及以上
+- **内存**: 8GB RAM或更多
+  - 支持同时运行多个Docker容器
+  - 更大的缓存空间用于处理复杂的LLM响应
+- **存储**: 50GB可用空间
+  - 足够空间存储20个CVE环境的Docker镜像
+  - 测试结果和历史记录
+- **网络**: 带宽≥10Mbps，低延迟（<100ms到LLM API服务器）
+
+**生产环境配置（高频测试/研究）：**
+- **CPU**: 8核心及以上
+- **内存**: 16GB RAM或更多
+- **存储**: 100GB+ SSD
+- **网络**: 专用网络连接，带宽≥100Mbps
+- **可选**: GPU（如果使用本地LLM模型）
+
+**架构限制：**
+- ⚠️ 仅支持x86_64架构
+- ⚠️ 不支持ARM架构（包括Apple M1/M2芯片）
+- 原因：部分Docker镜像和渗透测试工具仅提供x86_64版本
+
+**云服务器推荐规格：**
+- AWS: t3.large (2vCPU, 8GB) 或更高
+- Azure: Standard_B2s (2vCPU, 4GB) 最低配置，推荐Standard_D2s_v3 (2vCPU, 8GB)
+- 阿里云: ecs.c6.large (2vCPU, 4GB) 最低配置，推荐ecs.c6.xlarge (4vCPU, 8GB)
+- 腾讯云: S5.MEDIUM4 (2vCPU, 4GB) 最低配置，推荐S5.LARGE8 (4vCPU, 8GB)
 
 ### 安装步骤
 
@@ -171,10 +218,10 @@ pip install -r requirements.txt
 ```yaml
 ai:
   # OpenAI API配置
-  openai_base: "https://api.openai.com/v1"  # 或你的API代理地址
-  openai_key: "your-openai-api-key-here"
+  openai_base: "Enter your openai url key here"  # 或你的API代理地址
+  openai_key: "Enter your openai api key here"
   # NVIDIA API配置（使用Llama模型时需要）
-  nvidia_key: "your-nvidia-api-key-here"
+  nvidia_key: "Enter your nvidia api key here"
   # 模型参数
   temperature: 0
 
@@ -277,18 +324,18 @@ result/[模型名称]/[漏洞名称]_[模型名称]_FSM.jsonl
 
 ## 🎯 测试基准
 
-项目包含17个基于真实CVE的漏洞测试环境，涵盖OWASP Top 10的多个类别：
+项目包含20个基于真实CVE的漏洞测试环境，涵盖OWASP Top 10的多个类别：
 
 - **Cryptographic Failures**: Joomla CVE-2017-8917, Zabbix CVE-2016-10134
 - **Identification and Authentication Failures**: OFBiz CVE-2023-51467, Nacos CVE-2021-29441
 - **Security Misconfiguration**: Apache Druid CVE-2021-25646, TeamCity CVE-2023-42793
-- **Vulnerable Components**: Confluence CVE-2019-3396, RocketChat CVE-2021-22911
+- **Vulnerable and Outdated Components**: Confluence CVE-2019-3396, RocketChat CVE-2021-22911, ThinkPHP CVE-2019-9082, Drupal CVE-2018-7600, PhpMyAdmin CVE-2018-12613
 - **Software and Data Integrity Failures**: Confluence CVE-2022-26134, Tomcat CVE-2020-1938
-- **SSRF**: WebLogic SSRF, Apisix CVE-2021-45232
+- **Server-Side Request Forgery (SSRF)**: WebLogic CVE-2020-14750, Apisix CVE-2021-45232
 - **Security Logging and Monitoring Failures**: Elasticsearch CVE-2015-1427, WebLogic CVE-2017-10271
-- **Insecure Design**: Nginx解析漏洞, Tomcat CVE-2017-12615
+- **Insecure Design**: Nginx CVE-2021-23017, Tomcat CVE-2017-12615, Nexus CVE-2020-10199
 
-详见 `bench/` 目录和 `AutoPT/finalbench.jsonl` 文件。
+详见 `bench/data.jsonl`（测试基准数据）和 `AutoPT/finalbench.jsonl`（评测结果）文件。
 
 ## 🔧 工作流程
 

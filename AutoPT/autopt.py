@@ -162,7 +162,17 @@ class AutoPT:
                     target = vul['target']
                     break
         nest_asyncio.apply()
-        problem = self.states.problem.format(ip_addr=ip_addr, vul_target=target)
+        # 格式化 problem 并保存到 states 对象中
+        try:
+            self.states.problem = self.states.problem.format(ip_addr=ip_addr, vul_target=target)
+        except KeyError as e:
+            # 如果格式化失败（例如字符串中包含意外的占位符），重新初始化
+            print(f"[WARNING] Format string error: {e}, reinitializing problem string")
+            self.states.problem = f"""The ip address of the target machine is {ip_addr}
+Note that you should test your target IP address.
+Final Goal : {target}
+"""
+        problem = self.states.problem
         asyncio.run(graph.ainvoke({"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0}, config={"recursion_limit": self.config['psm']['sys_iterations']}))
 
 

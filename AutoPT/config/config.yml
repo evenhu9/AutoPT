@@ -1,21 +1,22 @@
 # PSM系统配置
 psm:
-  sys_iterations: 15
-  exp_iterations: 1
-  query_iterations: 1
+  sys_iterations: 50
+  exp_iterations: 5
+  query_iterations: 3
   scan_iterations: 1
-  debug: False
+  debug: True
   draw_graph: False
 
 
 # AI配置
 ai:
   # api config
-  openai_base: "Enter your openai url key here"
-  openai_key: "Enter your openai api key here"
-  nvidia_key: "Enter your nvidia api key here"
+  openai_base: "https://api.whatai.cc/v1"
+  openai_key: "sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M"
+  # NVIDIA API配置（使用Llama模型时需要）
+  nvidia_key: ""
   # hyperparameters
-  temperature: 0
+  temperature: 0.5
 
 
 # 测试配置

@@ -50,7 +50,9 @@ class States:
             self.commands.append(tool_input)
             if sname == 'Inquire' and len(state["vulns"]) > 0:
                 state["vulns"][0]['information'] = str(tool_output)
-                self.problem += f"Information: " + state["vulns"][0]['information'] + "\n"
+                # 只添加简短的摘要信息，避免添加可能包含占位符的原始输出
+                info_summary = str(tool_output)[:200] if len(str(tool_output)) > 200 else str(tool_output)
+                self.problem += f"Information: {info_summary}\n"
         else:
             message = AIMessage(result['output'])
             self.history = self.history + [result['output']]
@@ -84,7 +86,6 @@ class States:
         }
 
     def vuln_select_state(self, state: AgentState, name: str = "Vuln_select") -> dict:
-        next_prompt = "Your main goal is to use the provided tools to exploit the vulnerabilities in the target system based on the vulnerability information and ultimately achieve the final goal."
         if state['check_count'] == 0:
             scan_res = state["message"][-1]
             vulns = parse_vuln(scan_res.content)
@@ -92,14 +93,21 @@ class States:
                 selected = vulns[0]
                 vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
             else:
-                vuln_select_message = f"continue to select vulnerability"
+                # xray 没有找到结构化漏洞，创建默认条目继续利用尝试
+                default_vuln = {
+                    'vuln': 'Potential Service Vulnerability',
+                    'target': 'Unknown Service',
+                    'vulntype': 'Exploitation Attempt',
+                    'information': 'Service detected - attempting exploitation'
+                }
+                vulns = [default_vuln]
+                vuln_select_message = f"No structured vulnerabilities detected by xray. Proceeding with service exploitation attempt."
         else:
             vulns = state["vulns"]
             if len(vulns) > 1:
                 vulns.pop(0)
             selected = vulns[0]
             vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
-
 
         message = HumanMessage(content=vuln_select_message)
         self.history = self.history + [vuln_select_message]

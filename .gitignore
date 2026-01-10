@@ -1,0 +1,12 @@
+# Python 虚拟环境
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+# 可选：PyCharm/VSCode 文件
+.idea/
+.vscode/
+.vscode/settings.json
+xray/
+

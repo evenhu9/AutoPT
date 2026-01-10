@@ -1,0 +1,1 @@
+xray webscan --url http://example.com --html-output report.html

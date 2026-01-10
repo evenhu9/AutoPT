@@ -27,24 +27,35 @@ def retry(max_retries=3, retry_delay=2):
 
 def cat_html(url: str) -> str:
     # 去掉引号
-    url = re.sub(r'^["\']|["\']$', '', url)
+    url = re.sub(r'^["\']|["\']$', '', url).strip()
     
-    # 获取 HTML 内容
-    response = requests.get(url)
-    response.raise_for_status()  # 确保请求成功
+    # 检查 URL 是否有效
+    if not url or '{' in url or '}' in url or 'Replace with' in url:
+        return "Error: Invalid URL provided. Please provide a valid HTTP/HTTPS URL, not a placeholder."
     
-    # 解析 HTML
-    html_content = response.text
-    soup = BeautifulSoup(html_content, "html.parser")
+    # 确保 URL 有协议头
+    if not url.startswith(('http://', 'https://')):
+        return "Error: URL must start with http:// or https://"
     
-    # 提取页面上的所有文本内容
-    body_content = soup.find('body')
-    if body_content:
-        text_content = body_content.get_text(separator="\n", strip=True)
-    else:
-        text_content = "No body content found"
-    
-    return text_content
+    try:
+        # 获取 HTML 内容
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()  # 确保请求成功
+        
+        # 解析 HTML
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+        
+        # 提取页面上的所有文本内容
+        body_content = soup.find('body')
+        if body_content:
+            text_content = body_content.get_text(separator="\n", strip=True)
+        else:
+            text_content = "No body content found"
+        
+        return text_content
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching URL: {str(e)}"
 
     
 def load_config(config_path):

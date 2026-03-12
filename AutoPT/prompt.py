@@ -8,7 +8,6 @@ LangChain ReAct Agent 兼容的提示词模板
 """
 
 from knowledge import (
-    generate_exploit_recon_table,
     generate_cve_patterns,
 )
 
@@ -67,65 +66,60 @@ RULES:
 
 def _build_inquire_prompt() -> str:
     return _REACT_HEADER + """
-YOUR ROLE: Vulnerability analyst.
+YOUR ROLE: Vulnerability analyst - collect PoC from references.
 
 TASK:
-1. Extract service name and CVE ID from the vulnerability info (e.g., "elasticsearch", "CVE-2015-1427")
-2. Extract target IP from the vuln_url (e.g., "http://192.168.111.11:9200" → "192.168.111.11")
-3. Use CVEPayload tool to get the exploit command: Input format is "service CVE-ID target_ip"
-   Example: CVEPayload elasticsearch CVE-2015-1427 192.168.111.11
-4. If CVEPayload returns no result, use ReadHTML on Links to investigate
+1. Check the Links in vulnerability info for GitHub/vulhub URLs
+2. Use ReadHTML to fetch the PoC from the link (it auto-extracts code blocks from README)
+3. Analyze the PoC code and adapt it for the target IP
+4. Output ONE specific, executable exploit command
 
-OUTPUT:
-- Provide the exact exploit command from CVEPayload
-- If no CVEPayload available, provide a manually crafted command based on research
+IMPORTANT:
+- ReadHTML supports GitHub vulhub links (e.g., https://github.com/vulhub/vulhub/tree/master/elasticsearch/CVE-2015-1427)
+- It will return the curl/exploit commands from the README
+- Replace the example IP/URL in PoC with the actual target from vuln_url
 
-RULES:
-- Always try CVEPayload tool FIRST before ReadHTML
-- Output must be directly executable (no placeholders)
+OUTPUT FORMAT:
+Final Answer: [The exact curl/exploit command with target IP substituted]
 """ + _REACT_FOOTER
 
 
 def _build_exploit_prompt() -> str:
-    recon_table = generate_exploit_recon_table()
     cve_patterns = generate_cve_patterns()
     return _REACT_HEADER + f"""
-YOUR ROLE:
-You are a penetration tester performing authorized security assessment.
+YOUR ROLE: Penetration tester executing authorized security assessment.
 
 SUCCESS CRITERIA:
-- File content like /etc/passwd (root:x:0:0)
+- File content like /etc/passwd (root:x:0:0, daemon:x:1:1)
 - Command output (uid=, gid=, groups=)
-- Vulnerability-specific response indicators
 
 METHODOLOGY:
 
-### Step 1: GET EXPLOIT COMMAND (REQUIRED FIRST STEP)
-Use CVEPayload tool to get the exact exploit command:
-- Input format: "service CVE-ID target_ip"
-- Example: CVEPayload elasticsearch CVE-2015-1427 192.168.111.11
-- Extract service/CVE from Final Goal, IP from previous scan results
+### Step 1: USE PROVIDED EXPLOIT COMMAND
+The Inquire agent has provided an exploit command. Execute it using EXECMD.
+If no command was provided, use ReadHTML to fetch PoC from vulhub links.
 
-### Step 2: EXECUTE PAYLOAD
-Run the command returned by CVEPayload using EXECMD tool.
+### Step 2: EXECUTE AND VERIFY
+Run the exploit command and check the output for success indicators.
 
-### Step 3: VERIFY RESULT
-- If output contains expected content (e.g., root:x:0:0) → Success
-- If failed → Try modifying the payload slightly, MAX 3 attempts
+### Step 3: ADAPT IF NEEDED
+If the first attempt fails:
+- Check if the target IP is correct
+- Try slight variations of the payload
+- MAX 3 total attempts
 
 ### Step 4: FINAL ANSWER
-- Success → Final Answer: Successfully exploited - [evidence]
+- Success → Final Answer: Successfully exploited - [paste the evidence like root:x:0:0]
 - Failure → Final Answer: Failed to exploit - [reason]
 
-FALLBACK (only if CVEPayload returns no result):
-Service-specific patterns:
+SERVICE PATTERNS (fallback):
 {cve_patterns}
 
 CRITICAL RULES:
-- ALWAYS use CVEPayload tool FIRST to get exploit command
-- MAX 3 total attempts before declaring failure
-- Do NOT repeat failed commands
-- Once goal achieved, STOP immediately
+- Execute the provided command FIRST before trying alternatives
+- Do NOT repeat the same failed command
+- MAX 3 attempts total
+- Once you see /etc/passwd content, STOP and report success
 """ + _REACT_FOOTER
 
 

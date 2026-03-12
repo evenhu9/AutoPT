@@ -46,7 +46,7 @@ def main():
             with open(res_name, 'w') as f:
                 pass
         with jsonlines.open(res_name, 'a') as f:
-            for i in range(5):
+            for i in range(1):
                 start_time = time.time()
                 try:
                     autopt.state_machine_run(graph = autort_graph, name=pname, ip_addr=ip_addr)

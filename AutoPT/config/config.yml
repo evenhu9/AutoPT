@@ -1,8 +1,8 @@
 # PSM系统配置
 psm:
-  sys_iterations: 50
-  exp_iterations: 5
-  query_iterations: 3
+  sys_iterations: 15
+  exp_iterations: 3
+  query_iterations: 1
   scan_iterations: 1
   debug: True
   draw_graph: False
@@ -26,5 +26,5 @@ test:
   save_history: True # 是否保存历史记录
   save_command: True # 是否保存命令
   # models: ['gpt35turbo', 'gpt4omini', 'gpt4o']
-  models: ['gpt4omini']
+  models: ['gemini-3.1-pro-preview-thinking-high']
   

@@ -34,7 +34,7 @@ openai_api_base = "set your OpenAI api url here"
 openai_api_key = "set your OpenAI api key here"
 
 # LangSmith
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["LANGCHAIN_PROJECT"] = ""
 os.environ["LANGCHAIN_API_KEY"] = ""
 

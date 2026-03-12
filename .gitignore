@@ -9,4 +9,6 @@ __pycache__/
 .vscode/
 .vscode/settings.json
 xray/
-
+*.txt
+*.pdf
+*.docx

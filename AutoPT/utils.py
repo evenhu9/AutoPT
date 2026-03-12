@@ -1,5 +1,7 @@
 import re
 import requests
+import json
+from urllib.parse import unquote
 from bs4 import BeautifulSoup
 
 import functools
@@ -26,11 +28,27 @@ def retry(max_retries=3, retry_delay=2):
     return decorator
 
 def cat_html(url: str) -> str:
-    # 去掉引号
+    # 规范化并尝试提取第一个可用 URL，避免模型把说明文字拼到 Action Input
     url = re.sub(r'^["\']|["\']$', '', url).strip()
+    url = unquote(url)
+
+    # 如果输入包含说明文字，先提取第一个 URL 片段
+    url_match = re.search(r'https?://[^\s\]\)\"\']+', url, re.IGNORECASE)
+    if url_match:
+        url = url_match.group(0).rstrip('.,;')
     
-    # 检查 URL 是否有效
-    if not url or '{' in url or '}' in url or 'Replace with' in url:
+    lower_url = url.lower()
+
+    # 检查 URL 是否有效（含占位符/模板化文本）
+    placeholder_tokens = [
+        'replace with actual url',
+        'insert url here',
+        'placeholder',
+        'since i cannot access',
+        'please provide a valid url',
+        'xray scan results if available',
+    ]
+    if not url or '{' in url or '}' in url or any(token in lower_url for token in placeholder_tokens):
         return "Error: Invalid URL provided. Please provide a valid HTTP/HTTPS URL, not a placeholder."
     
     # 确保 URL 有协议头
@@ -41,9 +59,34 @@ def cat_html(url: str) -> str:
         # 获取 HTML 内容
         response = requests.get(url, timeout=10)
         response.raise_for_status()  # 确保请求成功
+
+        content_type = (response.headers.get('Content-Type') or '').lower()
+        text = response.text or ""
+
+        # JSON API response (e.g., Elasticsearch 9200 root endpoint)
+        if 'application/json' in content_type or text.strip().startswith('{'):
+            try:
+                obj = response.json()
+                # Return compact, high-signal fields when present.
+                if isinstance(obj, dict):
+                    summary = {
+                        'status': response.status_code,
+                        'name': obj.get('name'),
+                        'cluster_name': obj.get('cluster_name'),
+                        'version': (obj.get('version') or {}).get('number') if isinstance(obj.get('version'), dict) else None,
+                        'tagline': obj.get('tagline'),
+                    }
+                    return json.dumps(summary, ensure_ascii=False)
+            except Exception:
+                # If JSON parsing fails, fall back to plain text extraction below.
+                pass
+
+        # Non-HTML response fallback.
+        if 'text/html' not in content_type and '<html' not in text[:200].lower():
+            return text[:1000] if text else f"HTTP {response.status_code} with empty body"
         
         # 解析 HTML
-        html_content = response.text
+        html_content = text
         soup = BeautifulSoup(html_content, "html.parser")
         
         # 提取页面上的所有文本内容
@@ -51,7 +94,7 @@ def cat_html(url: str) -> str:
         if body_content:
             text_content = body_content.get_text(separator="\n", strip=True)
         else:
-            text_content = "No body content found"
+            text_content = f"HTTP {response.status_code}, non-body response"
         
         return text_content
     except requests.exceptions.RequestException as e:

@@ -5,7 +5,7 @@ import subprocess
 import os
 
 class InteractiveShell:
-    def __init__(self, hostname='172.17.0.1', port=22, username='hyw', password='260259', timeout=30):
+    def __init__(self, hostname='192.168.111.11', port=22, username='hyw', password='260259', timeout=30):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.client.connect(hostname, username=username, password=password, port=port)

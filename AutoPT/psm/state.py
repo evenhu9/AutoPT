@@ -267,8 +267,12 @@ When you fail after multiple attempts, respond with:
                 tool_name = i[0].tool
                 tool_input = i[0].tool_input
                 raw_tool_output = str(i[1])
-                if sname in self.raw_outputs:
-                    self.raw_outputs[sname] = raw_tool_output
+                # 只保存 EXECMD 工具的输出（xray 扫描结果），累积多次调用
+                if tool_name == "EXECMD" and sname in self.raw_outputs:
+                    if self.raw_outputs[sname]:
+                        self.raw_outputs[sname] += "\n" + raw_tool_output
+                    else:
+                        self.raw_outputs[sname] = raw_tool_output
 
                 tool_output = self._summarize_tool_output(raw_tool_output)
                 agent_output = i[0].log

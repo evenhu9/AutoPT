@@ -7,10 +7,16 @@ LangChain ReAct Agent 兼容的提示词模板
 3. 必需变量: {tools}, {tool_names}, {input}, {agent_scratchpad}
 """
 
-from .knowledge import (
-    generate_exploit_recon_table,
-    generate_cve_patterns,
-)
+try:
+    from .knowledge import (
+        generate_exploit_recon_table,
+        generate_cve_patterns,
+    )
+except ImportError:
+    from knowledge import (
+        generate_exploit_recon_table,
+        generate_cve_patterns,
+    )
 
 # ReAct 模板头部（共用）
 _REACT_HEADER = """Answer the following questions as best you can. You have access to the following tools:

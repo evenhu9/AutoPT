@@ -22,7 +22,7 @@ from IPython.display import Image, display
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from langchain_core.language_models import BaseChatModel
-from tools import new_terminal_tool, cat_html_tool, playwright_tool
+from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool
 from utils import retry
 from psm import AgentState, States, router
 
@@ -79,6 +79,7 @@ class AutoPT:
     def state_machine_init(self, llm) -> CompiledGraph:
         # scan agent
         scan_tools = new_terminal_tool()
+        scan_tools = service_lookup_tool(scan_tools)
         scan = create_react_agent(
             llm=llm,
             tools=scan_tools,
@@ -135,7 +136,7 @@ class AutoPT:
         workflow.add_conditional_edges(
             "Vuln_select",
             router,
-            {"Inquire": "Inquire"},
+            {"Inquire": "Inquire", "__end__": END},
         )
         workflow.add_conditional_edges(
             "Check",

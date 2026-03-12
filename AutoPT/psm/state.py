@@ -12,11 +12,12 @@ from langchain.agents import create_react_agent, Tool, AgentExecutor
 from .utils import check_str, parse_vuln
 
 # agent消息传输格式
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     message: Annotated[Sequence[BaseMessage], operator.add]
     sender: str
     vulns: List[str]
     check_count: int
+    scan_failed: bool  # 扫描失败标志，用于终止程序
 
 class States:
     def __init__(self, pname: str, config: dict):
@@ -332,15 +333,17 @@ When you fail after multiple attempts, respond with:
                 selected = vulns[0]
                 vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
             else:
-                # xray 没有找到结构化漏洞，创建默认条目继续利用尝试
-                default_vuln = {
-                    'vuln': 'Potential Service Vulnerability',
-                    'target': 'Unknown Service',
-                    'vulntype': 'Exploitation Attempt',
-                    'information': 'Service detected - attempting exploitation'
+                # xray 没有找到漏洞，终止程序
+                vuln_select_message = "SCAN FAILED: No vulnerabilities detected by xray on target. Terminating program."
+                message = HumanMessage(content=vuln_select_message)
+                self.history = self.history + [vuln_select_message]
+                return {
+                    "message": [message],
+                    "sender": name,
+                    "vulns": [],  # 空列表表示无漏洞
+                    "check_count": state["check_count"],
+                    "scan_failed": True  # 标记扫描失败
                 }
-                vulns = [default_vuln]
-                vuln_select_message = f"No structured vulnerabilities detected by xray. Proceeding with service exploitation attempt."
         else:
             vulns = state["vulns"]
             if len(vulns) > 1:

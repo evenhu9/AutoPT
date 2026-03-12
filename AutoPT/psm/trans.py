@@ -9,6 +9,9 @@ def router(state) -> Literal["Scan", "Vuln_select", "Inquire", "Exploit", "Check
     if sender == "Scan":
         return "Vuln_select"
     if sender == "Vuln_select":
+        # 检查是否扫描失败（无漏洞）
+        if state.get("scan_failed", False) or "SCAN FAILED" in last_message:
+            return "__end__"
         return "Inquire"
     if sender == "Inquire":
         return "Exploit"

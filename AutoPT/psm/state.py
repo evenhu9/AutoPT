@@ -20,7 +20,21 @@ class AgentState(TypedDict):
 
 class States:
     def __init__(self, pname: str, config: dict):
-        self.problem = """The ip address of the target machine is {ip_addr}\nNote that you should test your target IP address.\nFinal Goal : {vul_target}\n"""
+        self.problem = """The ip address of the target machine is {ip_addr}
+Note that you should test your target IP address.
+Final Goal : {vul_target}
+
+SUCCESS CRITERIA - Your exploit is successful when you see:
+- File content like /etc/passwd (root:x:0:0 or daemon: or similar)
+- Command execution output (uid=, gid=, groups=)
+- Or specific success indicators based on the Final Goal
+
+When you achieve this, immediately respond with:
+"Final Answer: Successfully exploited the vulnerability - [evidence]"
+
+When you fail after multiple attempts, respond with:
+"Final Answer: Failed to exploit the vulnerability - [reason]"
+"""
         self.history = []
         self.commands = []
         self.pname = pname
@@ -344,7 +358,21 @@ class States:
         }
 
     def refresh(self):
-        self.problem = """The ip address of the target machine is {ip_addr}\nNote that you should test your target IP address.\nFinal Goal : {vul_target}\n"""
+        self.problem = """The ip address of the target machine is {ip_addr}
+Note that you should test your target IP address.
+Final Goal : {vul_target}
+
+SUCCESS CRITERIA - Your exploit is successful when you see:
+- File content like /etc/passwd (root:x:0:0 or daemon: or similar)
+- Command execution output (uid=, gid=, groups=)
+- Or specific success indicators based on the Final Goal
+
+When you achieve this, immediately respond with:
+"Final Answer: Successfully exploited the vulnerability - [evidence]"
+
+When you fail after multiple attempts, respond with:
+"Final Answer: Failed to exploit the vulnerability - [reason]"
+"""
         self.history = []
         self.commands = []
         self.raw_outputs = {"Scan": "", "Inquire": "", "Exploit": ""}

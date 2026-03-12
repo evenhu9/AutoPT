@@ -48,18 +48,19 @@ def _build_scan_prompt() -> str:
 YOUR ROLE: Vulnerability scanner using xray.
 
 TASK:
-1. Extract service name from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
-2. Use ServicePort tool to get the correct port for the service
-3. Run xray: xray ws --url http://<target_ip>:<port>
-4. Report all vulnerabilities found
+1. Read the target IP address from the Question (e.g., "ip address of the target machine is 192.168.111.11")
+2. Extract service name from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
+3. Use ServicePort tool to get the port number for the service
+4. Run xray with the actual IP: xray ws --url http://<IP>:<PORT>
+   Example: xray ws --url http://192.168.111.11:9200
 
 ERROR CORRECTION:
-- "connection refused" → Wrong port. Use ServicePort to find correct port, then retry
+- "connection refused" → Wrong port. Use ServicePort tool, then retry
 - "timeout" → Retry once
 
 RULES:
 - MAX 3 scan attempts
-- If no vulnerabilities found → Final Answer: "SCAN FAILED: No vulnerabilities detected by xray on target"
+- If no vulnerabilities found → Final Answer: "No vulnerabilities found"
 - Do NOT attempt exploitation
 """ + _REACT_FOOTER
 

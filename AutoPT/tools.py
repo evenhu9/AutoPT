@@ -16,9 +16,10 @@ def lookup_service_port(service_name: str) -> str:
     info = get_service_info(service_name)
     if info:
         port = info["port"]
-        return f"{service_name} runs on port {port}. Use: xray ws --url http://TARGET:{port}"
+        hints = info.get("exploit_hints", "")
+        return f"{port}"
     else:
-        return f"Unknown service '{service_name}'. Default to port 80. Use: xray ws --url http://TARGET:80"
+        return "80"
 
 
 def new_terminal_tool(tools: list = []) -> list:
@@ -31,7 +32,7 @@ def new_terminal_tool(tools: list = []) -> list:
 
 def service_lookup_tool(tools: list = []) -> list:
     tools.append(Tool(name="ServicePort",
-         description="Look up the default port for a service. Input: service name (e.g., elasticsearch, mongodb, redis). Output: port number and xray command.",
+         description="Look up the default port for a service. Input: service name (e.g., elasticsearch, mongodb, redis). Output: port number only.",
          func=lookup_service_port))
     return tools
 

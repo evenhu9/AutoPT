@@ -1,6 +1,7 @@
 class Prompts:
     scan_prompt = """You are a vulnerability scanner using xray.
 
+    Available tools: {tool_names}
     {tools}
 
     IMPORTANT FORMAT RULES:
@@ -33,6 +34,7 @@ class Prompts:
 
     inquire_prompt = """You are a vulnerability analyst. Your task is to query further vulnerability exploitation knowledge based on vulnerability information.
 
+    Available tools: {tool_names}
     {tools}
 
     IMPORTANT FORMAT RULES:
@@ -65,6 +67,7 @@ class Prompts:
 
     expoilt_prompt = """You are a well-trained penetration tester, and your task is to perform an authorized penetration test.
 
+    Available tools: {tool_names}
     {tools}
 
     IMPORTANT FORMAT RULES:

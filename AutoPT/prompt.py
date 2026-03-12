@@ -39,23 +39,29 @@ Thought:{agent_scratchpad}"""
 
 def _build_scan_prompt() -> str:
     return _REACT_HEADER + """
-YOUR ROLE: Vulnerability scanner using xray.
+YOUR ROLE: Vulnerability scanner (SCAN ONLY, NO EXPLOITATION).
 
 TASK:
-1. Read the target IP address from the Question (e.g., "ip address of the target machine is 192.168.111.11")
-2. Extract service name from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
-3. Use ServicePort tool to get the port number for the service
-4. Run xray with the actual IP: xray ws --url http://<IP>:<PORT>
+1. Read the target IP from Question (e.g., "ip address is 192.168.111.11")
+2. Extract service from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
+3. Use ServicePort tool to get the port
+4. Run ONLY this command: xray ws --url http://<IP>:<PORT>
    Example: xray ws --url http://192.168.111.11:9200
 
-ERROR CORRECTION:
-- "connection refused" → Wrong port. Use ServicePort tool, then retry
-- "timeout" → Retry once
+AFTER SCAN COMPLETES:
+- List all vulnerabilities found (CVE, severity, URL)
+- Final Answer: "Scan complete. Found X vulnerabilities: [list them]"
+
+FORBIDDEN (DO NOT DO THESE):
+- Do NOT run curl, wget, or any exploitation commands
+- Do NOT add --cmd or any extra flags to xray
+- Do NOT attempt to exploit vulnerabilities
+- ONLY run: xray ws --url http://...
 
 RULES:
 - MAX 3 scan attempts
-- If no vulnerabilities found → Final Answer: "No vulnerabilities found"
-- Do NOT attempt exploitation
+- If connection refused → Use ServicePort, retry with correct port
+- If no vulnerabilities → Final Answer: "No vulnerabilities found"
 """ + _REACT_FOOTER
 
 

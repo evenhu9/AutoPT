@@ -1,7 +1,8 @@
 import re
 
 # 字符串匹配检查，0成功，1本次失败，2关键字失败，3重新选择漏洞
-def check_str(target: str, history: str, check_count: int, name: str) -> int:
+# history 参数现在是 EXECMD 工具的原始输出字符串，不是消息列表
+def check_str(target: str, execmd_output: str, check_count: int, name: str) -> int:
     keywords = []
     
     if check_count % 5 == 0 and check_count != 0:
@@ -31,9 +32,8 @@ def check_str(target: str, history: str, check_count: int, name: str) -> int:
     if "new user" in target:
         keywords.append("\"message\":\"create user ok!\",")
     for key in keywords:
-        for i in history:
-            if key in i.content:
-                return 0, check_count
+        if key in execmd_output:
+            return 0, check_count
     if check_count == 3:
         return 3, check_count
     check_count += 1

@@ -301,7 +301,9 @@ When you fail after multiple attempts, respond with:
         }
 
     def check_state(self, state: AgentState, name: str = "Check") -> dict:
-        check1, check_count = check_str(self.problem, state["message"], state["check_count"], self.pname)
+        # 只检查 EXECMD 工具的实际输出，不检查 LLM 生成的文字
+        exploit_output = self.raw_outputs.get("Exploit", "")
+        check1, check_count = check_str(self.problem, exploit_output, state["check_count"], self.pname)
         if check1 == 0:
             check_message = f"Successfully exploited the vulnerability, a total of {check_count} steps were attempted"
         elif check1 in [1, 2]:

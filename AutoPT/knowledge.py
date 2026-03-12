@@ -104,3 +104,28 @@ def generate_cve_patterns() -> str:
         if patterns:
             lines.append(f"- {name.capitalize()}: {patterns}")
     return "\n".join(lines)
+
+
+def get_cve_payload(service_name: str, cve_id: str, target_ip: str) -> Optional[str]:
+    """获取 CVE 特定的利用 payload，并替换目标 IP"""
+    kb = load_services()
+    name = service_name.lower().strip()
+    cve_id = cve_id.upper().strip()
+    
+    # 直接匹配
+    if name in kb["services"]:
+        info = kb["services"][name]
+    else:
+        # 别名匹配
+        info = None
+        for svc, svc_info in kb["services"].items():
+            if name in svc_info.get("aliases", []):
+                info = svc_info
+                break
+    
+    if info and "cve_payloads" in info:
+        payload = info["cve_payloads"].get(cve_id)
+        if payload:
+            return payload.strip().replace("{target}", target_ip)
+    
+    return None

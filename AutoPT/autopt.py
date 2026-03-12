@@ -22,7 +22,7 @@ from IPython.display import Image, display
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from langchain_core.language_models import BaseChatModel
-from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool
+from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool, cve_payload_tool
 from utils import retry
 from psm import AgentState, States, router
 
@@ -90,6 +90,7 @@ class AutoPT:
 
         # inquire agent
         inquire_tools = cat_html_tool()
+        inquire_tools = cve_payload_tool(inquire_tools)
         inquire = create_react_agent(
             llm=llm,
             tools=inquire_tools,
@@ -101,6 +102,7 @@ class AutoPT:
         # exploit agent
         exploit_tools = []
         exploit_tools = new_terminal_tool()
+        exploit_tools = cve_payload_tool(exploit_tools)
         exploit_tools = playwright_tool(exploit_tools)
         exploit = create_react_agent(
             llm=llm,

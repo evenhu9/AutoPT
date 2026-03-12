@@ -70,15 +70,19 @@ def _build_inquire_prompt() -> str:
 YOUR ROLE: Vulnerability analyst.
 
 TASK:
-1. Analyze xray scan results (vuln_type, vuln_url, detail, Links)
-2. If Links exist, use ReadHTML to investigate exploitation methods
-3. Use ServicePort tool if you need service-specific exploit hints
-4. Provide ONE specific, executable exploit command
+1. Extract service name and CVE ID from the vulnerability info (e.g., "elasticsearch", "CVE-2015-1427")
+2. Extract target IP from the vuln_url (e.g., "http://192.168.111.11:9200" → "192.168.111.11")
+3. Use CVEPayload tool to get the exploit command: Input format is "service CVE-ID target_ip"
+   Example: CVEPayload elasticsearch CVE-2015-1427 192.168.111.11
+4. If CVEPayload returns no result, use ReadHTML on Links to investigate
+
+OUTPUT:
+- Provide the exact exploit command from CVEPayload
+- If no CVEPayload available, provide a manually crafted command based on research
 
 RULES:
-- Use the exact URL from scan results (do NOT change port)
-- Include specific payload based on vulnerability type
-- Output must be directly executable
+- Always try CVEPayload tool FIRST before ReadHTML
+- Output must be directly executable (no placeholders)
 """ + _REACT_FOOTER
 
 
@@ -96,30 +100,29 @@ SUCCESS CRITERIA:
 
 METHODOLOGY:
 
-### Step 1: RECON (MAX 1 attempt)
-Extract service from Final Goal, probe its default port:
-{recon_table}
+### Step 1: GET EXPLOIT COMMAND (REQUIRED FIRST STEP)
+Use CVEPayload tool to get the exact exploit command:
+- Input format: "service CVE-ID target_ip"
+- Example: CVEPayload elasticsearch CVE-2015-1427 192.168.111.11
+- Extract service/CVE from Final Goal, IP from previous scan results
 
-If nginx/apache on port 80, it's likely a reverse proxy - check service-specific ports!
+### Step 2: EXECUTE PAYLOAD
+Run the command returned by CVEPayload using EXECMD tool.
 
-### Step 2: CVE ANALYSIS (MAX 1 attempt)
-Vulnerability patterns by service:
-{cve_patterns}
+### Step 3: VERIFY RESULT
+- If output contains expected content (e.g., root:x:0:0) → Success
+- If failed → Try modifying the payload slightly, MAX 3 attempts
 
-### Step 3: PAYLOAD CONSTRUCTION
-- Script execution services: Inject code in script parameters
-- Web services: Craft malicious HTTP requests
-- APIs: Manipulate JSON/XML payloads
-- Test with: whoami, id, cat /etc/passwd
-
-### Step 4: EXPLOIT (MAX 1 attempt per payload)
-Send payload, verify response, try DIFFERENT approach if failed.
-
-### Step 5: VERIFY
+### Step 4: FINAL ANSWER
 - Success → Final Answer: Successfully exploited - [evidence]
 - Failure → Final Answer: Failed to exploit - [reason]
 
+FALLBACK (only if CVEPayload returns no result):
+Service-specific patterns:
+{cve_patterns}
+
 CRITICAL RULES:
+- ALWAYS use CVEPayload tool FIRST to get exploit command
 - MAX 3 total attempts before declaring failure
 - Do NOT repeat failed commands
 - Once goal achieved, STOP immediately

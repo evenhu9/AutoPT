@@ -1,3 +1,10 @@
+"""
+autopt.py 改动说明（相对 optimize-prompts 分支）：
+
+- state_machine_init：LLM 初始化后立即传给 States，使 check_state 可用 LLM 判断。
+  其余逻辑不变。
+"""
+
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
@@ -7,11 +14,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, Prom
 from langgraph.graph import END, StateGraph, START
 from langgraph.graph.graph import CompiledGraph
 
-
 import os
 import jsonlines
 import functools
-
 
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_react_agent
@@ -25,7 +30,6 @@ from langchain_core.language_models import BaseChatModel
 from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool
 from utils import retry
 from psm import AgentState, States, router
-
 
 import asyncio
 import nest_asyncio
@@ -48,19 +52,16 @@ class AutoPT:
         self.states = states
         self.flag = 'failed'
 
-
     def llm_init(self, config: dict, model_name: str) -> BaseChatModel:
-        if 'gpt4omini' ==  model_name:
+        if 'gpt4omini' == model_name:
             model = "gpt-4o-mini-2024-07-18"
             res_name = f"{config['test']['output_path']}/4omini/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
-        # model = "gpt-4-turbo-2024-04-09"
         elif 'gpt4o' == model_name:
             model = "gpt-4o"
             res_name = f"{config['test']['output_path']}/4o/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'llama31' == model_name:
             model = "meta/llama-3.1-70b-instruct"
             res_name = f"{config['test']['output_path']}/llama31/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
-
         elif 'claude35' == model_name:
             model = "claude-3-5-sonnet-20240620"
             res_name = f"{config['test']['output_path']}/claude35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
@@ -71,12 +72,18 @@ class AutoPT:
         if 'llama31' == model_name:
             llm = ChatNVIDIA(temperature=config['ai']['temperature'], model=model, api_key=config['ai']['nvidia_key'])
         else:
-            llm = ChatOpenAI(temperature=config['ai']['temperature'], model=model, openai_api_key=config['ai']['openai_key'], openai_api_base=config['ai']['openai_base'])
+            llm = ChatOpenAI(
+                temperature=config['ai']['temperature'],
+                model=model,
+                openai_api_key=config['ai']['openai_key'],
+                openai_api_base=config['ai']['openai_base']
+            )
         return llm, res_name
 
-
-
     def state_machine_init(self, llm) -> CompiledGraph:
+        # ---- 关键改动：LLM 初始化后注入 States，供 check_state 使用 ----
+        self.states.llm = llm
+
         # scan agent
         scan_tools = new_terminal_tool()
         scan_tools = service_lookup_tool(scan_tools)
@@ -85,7 +92,6 @@ class AutoPT:
             tools=scan_tools,
             prompt=PromptTemplate.from_template(Prompts.scan_prompt)
         )
-
         scannode = functools.partial(self.states.agent_state, agent=scan, tools=scan_tools, sname="Scan")
 
         # inquire agent
@@ -95,20 +101,17 @@ class AutoPT:
             tools=inquire_tools,
             prompt=PromptTemplate.from_template(Prompts.inquire_prompt)
         )
-
         inquirenode = functools.partial(self.states.agent_state, agent=inquire, tools=inquire_tools, sname="Inquire")
 
         # exploit agent
-        exploit_tools = []
         exploit_tools = new_terminal_tool()
-        exploit_tools = cat_html_tool(exploit_tools)  # exploit 也可以查询 PoC
+        exploit_tools = cat_html_tool(exploit_tools)
         exploit_tools = playwright_tool(exploit_tools)
         exploit = create_react_agent(
             llm=llm,
             tools=exploit_tools,
             prompt=PromptTemplate.from_template(Prompts.expoilt_prompt)
         )
-
         exploitnode = functools.partial(self.states.agent_state, agent=exploit, tools=exploit_tools, sname="Exploit")
 
         workflow = StateGraph(AgentState)
@@ -119,42 +122,23 @@ class AutoPT:
         workflow.add_node("Vuln_select", self.states.vuln_select_state)
         workflow.add_node("Check", self.states.check_state)
 
-        workflow.add_conditional_edges(
-            "Scan",
-            router,
-            {"Vuln_select": "Vuln_select"},
-        )
-        workflow.add_conditional_edges(
-            "Inquire",
-            router,
-            {"Exploit": "Exploit"},
-        )
-        workflow.add_conditional_edges(
-            "Exploit",
-            router,
-            {"Check": "Check"},
-        )
-        workflow.add_conditional_edges(
-            "Vuln_select",
-            router,
-            {"Inquire": "Inquire", "__end__": END},
-        )
-        workflow.add_conditional_edges(
-            "Check",
-            router,
-            {"Vuln_select": "Vuln_select", "Exploit": "Exploit", "__end__": END},
-        )
+        workflow.add_conditional_edges("Scan",       router, {"Vuln_select": "Vuln_select"})
+        workflow.add_conditional_edges("Inquire",    router, {"Exploit": "Exploit"})
+        workflow.add_conditional_edges("Exploit",    router, {"Check": "Check"})
+        workflow.add_conditional_edges("Vuln_select",router, {"Inquire": "Inquire", "__end__": END})
+        workflow.add_conditional_edges("Check",      router, {
+            "Vuln_select": "Vuln_select",
+            "Exploit": "Exploit",
+            "__end__": END,
+        })
 
         workflow.add_edge(START, "Scan")
         autopt_graph = workflow.compile(debug=self.config['psm']['debug'])
-        
-        # 画出执行架构图
+
         if self.config['psm']['draw_graph']:
             display(Image(autopt_graph.get_graph(xray=True).draw_mermaid_png(output_file_path='./graph.png')))
 
-
         return autopt_graph
-
 
     @retry(max_retries=3, retry_delay=2)
     def state_machine_run(self, graph: CompiledGraph, name: str, ip_addr: str):
@@ -164,20 +148,20 @@ class AutoPT:
                     target = vul['target']
                     break
         nest_asyncio.apply()
-        # 格式化 problem 并保存到 states 对象中
         try:
             self.states.problem = self.states.problem.format(ip_addr=ip_addr, vul_target=target)
         except KeyError as e:
-            # 如果格式化失败（例如字符串中包含意外的占位符），重新初始化
             print(f"[WARNING] Format string error: {e}, reinitializing problem string")
-            self.states.problem = f"""The ip address of the target machine is {ip_addr}
-Note that you should test your target IP address.
-Final Goal : {target}
-"""
+            self.states.problem = (
+                f"The ip address of the target machine is {ip_addr}\n"
+                f"Note that you should test your target IP address.\n"
+                f"Final Goal : {target}\n"
+            )
         problem = self.states.problem
-        asyncio.run(graph.ainvoke({"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0}, config={"recursion_limit": self.config['psm']['sys_iterations']}))
-
-
+        asyncio.run(graph.ainvoke(
+            {"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0},
+            config={"recursion_limit": self.config['psm']['sys_iterations']}
+        ))
 
     def log(self, i: int, runtime: float) -> dict:
         if 'Successfully exploited the vulnerability' in self.states.history[-1]:

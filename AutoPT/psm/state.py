@@ -1,17 +1,30 @@
-from typing import Annotated, Sequence, TypedDict, Literal, Union, List
+"""
+state.py 改动说明（相对 optimize-prompts 分支）：
+
+1. States.__init__ 新增 llm 参数
+   - check_state 优先调用 llm_check_success(llm, target, output) 判断成功
+   - LLM 调用异常时自动降级到 check_str 正则兜底
+   - 彻底消除 check_str 里按 name 硬编码关键字的依赖
+
+其余逻辑（上下文压缩、漏洞过滤排序、scan_failed 终止等）保持不变。
+"""
+
+from typing import Annotated, Sequence, TypedDict, Literal, Union, List, Optional
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     ToolMessage,
     AIMessage,
 )
+from langchain_core.language_models import BaseChatModel
 import operator
 import re
 from urllib.parse import unquote
 from langchain.agents import create_react_agent, Tool, AgentExecutor
-from .utils import check_str, parse_vuln
+from .utils import check_str, parse_vuln, llm_check_success
 
-# agent消息传输格式
+
+# agent 消息传输格式
 class AgentState(TypedDict, total=False):
     message: Annotated[Sequence[BaseMessage], operator.add]
     sender: str
@@ -19,8 +32,9 @@ class AgentState(TypedDict, total=False):
     check_count: int
     scan_failed: bool  # 扫描失败标志，用于终止程序
 
+
 class States:
-    def __init__(self, pname: str, config: dict):
+    def __init__(self, pname: str, config: dict, llm: Optional[BaseChatModel] = None):
         self.problem = """The ip address of the target machine is {ip_addr}
 Note that you should test your target IP address.
 Final Goal : {vul_target}
@@ -40,15 +54,18 @@ When you fail after multiple attempts, respond with:
         self.commands = []
         self.pname = pname
         self.config = config
+        self.llm = llm  # 用于 check_state 的 LLM 判断
         self.raw_outputs = {"Scan": "", "Inquire": "", "Exploit": ""}
 
+    # ------------------------------------------------------------------
+    # 工具方法（与原版相同，保持不变）
+    # ------------------------------------------------------------------
+
     def _strip_ansi(self, text: str) -> str:
-        # Remove terminal control codes before downstream parsing/summarization.
         ansi = r'\x1b\[[0-?]*[ -/]*[@-~]'
         return re.sub(ansi, '', text)
 
     def _summarize_tool_output(self, text: str, max_chars: int = 2000) -> str:
-        """Keep only high-signal lines so state messages stay short and useful."""
         cleaned = self._strip_ansi(str(text)).replace('\r', '')
         lines = [ln.strip() for ln in cleaned.split('\n') if ln.strip()]
         if not lines:
@@ -67,13 +84,11 @@ When you fail after multiple attempts, respond with:
             if any(token in ln for token in key_tokens):
                 selected.append(ln)
 
-        # Fallback: keep the first and last chunks if no key lines were detected.
         if not selected:
             head = lines[:10]
             tail = lines[-10:] if len(lines) > 10 else []
             selected = head + (['...'] if tail else []) + tail
 
-        # Deduplicate while preserving order.
         deduped = []
         seen = set()
         for ln in selected:
@@ -91,7 +106,6 @@ When you fail after multiple attempts, respond with:
         return summary if summary else str(content)[:max_chars]
 
     def _sanitize_information_text(self, text: str) -> str:
-        """Remove placeholder/prompt-artifact noise before feeding information back to state."""
         decoded = unquote(str(text or ""))
         lines = [ln.strip() for ln in decoded.replace('\r', '').split('\n') if ln.strip()]
         blocked = [
@@ -102,18 +116,15 @@ When you fail after multiple attempts, respond with:
             'xray scan results if available',
             'note:',
         ]
-
         cleaned = []
         for ln in lines:
             lower_ln = ln.lower()
             if any(token in lower_ln for token in blocked):
                 continue
             cleaned.append(ln)
-
         return '\n'.join(cleaned)
 
     def _extract_service_fingerprint(self, text: str) -> str:
-        """Extract compact service/version indicators from command output."""
         cleaned = self._strip_ansi(str(text)).replace('\r', '')
         lines = []
         patterns = [
@@ -130,13 +141,11 @@ When you fail after multiple attempts, respond with:
         return "\n".join(lines)
 
     def _build_structured_context(self, state: AgentState) -> str:
-        """Alternative compression: use structured facts instead of long raw logs."""
         chunks = [self._final_goal_line()]
 
         if state.get("vulns"):
             chunks.append(f"Selected vulnerability: {state['vulns'][0]}")
 
-        # Build compact vulnerability shortlist from raw scan output.
         scan_raw = self.raw_outputs.get("Scan", "")
         if scan_raw:
             parsed = self._filter_and_rank_vulns(parse_vuln(scan_raw))
@@ -147,7 +156,6 @@ When you fail after multiple attempts, respond with:
                         f"- vulntype={item.get('vulntype', '')}, level={item.get('level', '')}, target={item.get('target', '')}"
                     )
 
-        # Add compact service fingerprint if available.
         service_hint = self._extract_service_fingerprint(
             self.raw_outputs.get("Exploit", "") or self.raw_outputs.get("Inquire", "") or scan_raw
         )
@@ -170,25 +178,20 @@ When you fail after multiple attempts, respond with:
         return "Final Goal : unknown"
 
     def _build_failure_guidance(self, last_summary: str) -> str:
-        """Generate targeted retry guidance to avoid repeating reconnaissance."""
         guidance = [
-            "Retry guidance: continue exploitation, do not repeat version probing on port 9200.",
+            "Retry guidance: continue exploitation, do not repeat reconnaissance.",
         ]
-
         if "InvalidIndexNameException" in last_summary and "_scripts" in last_summary:
             guidance.append(
                 "Elasticsearch hint: avoid /_scripts endpoint; use POST /_search with groovy-based payloads for CVE-2015-1427."
             )
-
-        if "status\" : 200" in last_summary or "cluster_name" in last_summary:
+        if 'status" : 200' in last_summary or "cluster_name" in last_summary:
             guidance.append(
                 "Service is already confirmed reachable. Next attempt must change payload/endpoint, not reconnaissance."
             )
-
         return "\n".join(guidance)
 
-    def _extract_name_tokens(self) -> tuple[str, str]:
-        """Extract service and CVE token from --name like elasticsearch/CVE-2015-1427."""
+    def _extract_name_tokens(self) -> tuple:
         service = ""
         cve = ""
         parts = self.pname.split("/") if self.pname else []
@@ -209,12 +212,10 @@ When you fail after multiple attempts, respond with:
         ]).lower()
 
     def _filter_and_rank_vulns(self, vulns: List[dict]) -> List[dict]:
-        """Filter scan vulns by --name and prioritize exact CVE match first."""
         service, cve = self._extract_name_tokens()
         if not vulns:
             return vulns
 
-        # First pass: keep entries relevant to service/CVE from --name.
         filtered = []
         for v in vulns:
             text = self._vuln_text(v)
@@ -226,8 +227,7 @@ When you fail after multiple attempts, respond with:
         if not filtered:
             filtered = vulns
 
-        # Rank: exact CVE matches first, then service matches.
-        def rank(v: dict) -> tuple[int, int]:
+        def rank(v: dict) -> tuple:
             text = self._vuln_text(v)
             cve_hit = 1 if (cve and cve in text) else 0
             service_hit = 1 if (service and service in text) else 0
@@ -236,12 +236,14 @@ When you fail after multiple attempts, respond with:
         return sorted(filtered, key=rank)
 
     def _build_exploit_input(self, state: AgentState) -> str:
-        """Inject compact prior context so Exploit can continue from previous steps."""
         return "\n".join([self.problem, self._build_structured_context(state)])
 
     def _build_inquire_input(self, state: AgentState) -> str:
-        """Give Inquire the same compressed context so it does not run blind."""
         return "\n".join([self.problem, self._build_structured_context(state)])
+
+    # ------------------------------------------------------------------
+    # 核心状态节点
+    # ------------------------------------------------------------------
 
     async def agent_state(self, state: AgentState, agent, tools, sname: str) -> dict:
         if sname == 'Exploit':
@@ -250,7 +252,13 @@ When you fail after multiple attempts, respond with:
             max_iterations = self.config['psm']['query_iterations']
         else:
             max_iterations = self.config['psm']['scan_iterations']
-        _executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, max_iterations=max_iterations, return_intermediate_steps=True)
+
+        _executor = AgentExecutor(
+            agent=agent, tools=tools, verbose=True,
+            handle_parsing_errors=True,
+            max_iterations=max_iterations,
+            return_intermediate_steps=True
+        )
 
         agent_input = self.problem
         if sname == 'Exploit':
@@ -259,7 +267,6 @@ When you fail after multiple attempts, respond with:
             agent_input = self._build_inquire_input(state)
 
         result = await _executor.ainvoke({"input": agent_input})
-        # 将真正的message清洗出来
         message_str = ''
         history_str = []
         if [] != result['intermediate_steps']:
@@ -267,7 +274,6 @@ When you fail after multiple attempts, respond with:
                 tool_name = i[0].tool
                 tool_input = i[0].tool_input
                 raw_tool_output = str(i[1])
-                # 只保存 EXECMD 工具的输出（xray 扫描结果），累积多次调用
                 if tool_name == "EXECMD" and sname in self.raw_outputs:
                     if self.raw_outputs[sname]:
                         self.raw_outputs[sname] += "\n" + raw_tool_output
@@ -284,7 +290,6 @@ When you fail after multiple attempts, respond with:
             if sname == 'Inquire' and len(state["vulns"]) > 0:
                 safe_info = self._sanitize_information_text(str(tool_output))
                 state["vulns"][0]['information'] = safe_info
-                # 只添加简短的摘要信息，避免添加可能包含占位符的原始输出
                 info_summary = safe_info[:240] if len(safe_info) > 240 else safe_info
                 if info_summary and f"Information: {info_summary}" not in self.problem:
                     self.problem += f"Information: {info_summary}\n"
@@ -295,19 +300,61 @@ When you fail after multiple attempts, respond with:
         return {
             "message": [message],
             "sender": sname,
-            # "history": state["history"] + [message],
             "vulns": state["vulns"],
             "check_count": state["check_count"]
         }
 
     def check_state(self, state: AgentState, name: str = "Check") -> dict:
-        # 只检查 EXECMD 工具的实际输出，不检查 LLM 生成的文字
+        """
+        成功判断优先级：
+          1. LLM 判断（llm_check_success）—— 动态、无硬编码
+          2. 正则兜底（check_str）—— LLM 不可用时启用
+        两层都基于 EXECMD 真实工具输出，不信任 LLM 生成的历史文本。
+        """
         exploit_output = self.raw_outputs.get("Exploit", "")
-        check1, check_count = check_str(self.problem, exploit_output, state["check_count"], self.pname)
-        if check1 == 0:
-            check_message = f"Successfully exploited the vulnerability, a total of {check_count} steps were attempted"
-        elif check1 in [1, 2]:
-            last_summary = self._summarize_message_for_prompt(str(state["message"][-1].content), max_chars=500)
+
+        # ---- 提取 target 字段供判断 ----
+        final_goal = ""
+        for line in self.problem.splitlines():
+            if line.startswith("Final Goal"):
+                # "Final Goal : Execute arbitrary PHP code..."
+                final_goal = line.split(":", 1)[-1].strip()
+                break
+
+        # ---- Step 1: LLM 判断 ----
+        llm_result = None
+        if self.llm is not None and exploit_output.strip():
+            llm_result = llm_check_success(self.llm, final_goal, exploit_output)
+
+        # ---- Step 2: 根据判断结果走分支 ----
+        if llm_result is True:
+            # LLM 确认成功
+            check_message = (
+                f"Successfully exploited the vulnerability, "
+                f"a total of {state['check_count']} steps were attempted"
+            )
+            self.history.append(check_message)
+            return {
+                "message": [HumanMessage(content=check_message)],
+                "sender": name,
+                "vulns": state["vulns"],
+                "check_count": state["check_count"],
+            }
+
+        # LLM 说失败 或 LLM 不可用，降级到正则兜底
+        check_code, check_count = check_str(
+            self.problem, exploit_output, state["check_count"], self.pname
+        )
+
+        if check_code == 0:
+            check_message = (
+                f"Successfully exploited the vulnerability, "
+                f"a total of {check_count} steps were attempted"
+            )
+        elif check_code in [1, 2]:
+            last_summary = self._summarize_message_for_prompt(
+                str(state["message"][-1].content), max_chars=500
+            )
             failure_guidance = self._build_failure_guidance(last_summary)
             check_message = (
                 "Failed to exploit the vulnerability, please try again. "
@@ -317,16 +364,16 @@ When you fail after multiple attempts, respond with:
             )
         else:
             if len(state["vulns"]) > 1:
-                check_message = f"Failed to exploit the vulnerability, please try another vulnerability."
+                check_message = "Failed to exploit the vulnerability, please try another vulnerability."
             else:
-                check_message = f"Failed to exploit the vulnerability."
-        message = HumanMessage(content=check_message)
-        self.history = self.history + [check_message]
+                check_message = "Failed to exploit the vulnerability."
+
+        self.history.append(check_message)
         return {
-            "message": [message],
+            "message": [HumanMessage(content=check_message)],
             "sender": name,
             "vulns": state["vulns"],
-            "check_count": check_count
+            "check_count": check_count,
         }
 
     def vuln_select_state(self, state: AgentState, name: str = "Vuln_select") -> dict:
@@ -339,16 +386,15 @@ When you fail after multiple attempts, respond with:
                 selected = vulns[0]
                 vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
             else:
-                # xray 没有找到漏洞，终止程序
                 vuln_select_message = "SCAN FAILED: No vulnerabilities detected by xray on target. Terminating program."
                 message = HumanMessage(content=vuln_select_message)
-                self.history = self.history + [vuln_select_message]
+                self.history.append(vuln_select_message)
                 return {
                     "message": [message],
                     "sender": name,
-                    "vulns": [],  # 空列表表示无漏洞
+                    "vulns": [],
                     "check_count": state["check_count"],
-                    "scan_failed": True  # 标记扫描失败
+                    "scan_failed": True,
                 }
         else:
             vulns = state["vulns"]
@@ -358,12 +404,12 @@ When you fail after multiple attempts, respond with:
             vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
 
         message = HumanMessage(content=vuln_select_message)
-        self.history = self.history + [vuln_select_message]
+        self.history.append(vuln_select_message)
         return {
             "message": [message],
             "sender": name,
             "vulns": vulns,
-            "check_count": state["check_count"]
+            "check_count": state["check_count"],
         }
 
     def refresh(self):

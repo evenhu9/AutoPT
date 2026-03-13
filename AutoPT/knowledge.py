@@ -58,9 +58,28 @@ def get_service_info(service_name: str) -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 动态端口发现：masscan + httpx
+# 动态端口发现：xray crawlergo 探测
 # 仅在 get_service_info 返回 None（YAML 里查不到服务）时触发
 # ---------------------------------------------------------------------------
+
+# 探测的候选端口列表（覆盖常见 Web 服务端口）
+_CANDIDATE_PORTS = [
+    80, 443, 8080, 8443, 8888, 8008, 8090,
+    9200, 9300,   # Elasticsearch
+    7001, 7002,   # WebLogic
+    8161,         # ActiveMQ
+    27017,        # MongoDB
+    6379,         # Redis
+    5601,         # Kibana
+    9000,         # SonarQube / Portainer
+    3000,         # Grafana / Node apps
+    4848,         # GlassFish
+    8983,         # Solr
+    15672,        # RabbitMQ management
+    2375,         # Docker API
+    10250,        # Kubernetes kubelet
+]
+
 
 def _run(cmd: str, timeout: int = 30) -> str:
     """执行 shell 命令，返回 stdout+stderr，超时或报错返回空串。"""
@@ -73,82 +92,50 @@ def _run(cmd: str, timeout: int = 30) -> str:
         return ""
 
 
-def _masscan_open_ports(ip: str, rate: int = 1000, timeout: int = 30) -> list:
+def _xray_probe_port(ip: str, port: int, timeout: int = 8) -> bool:
     """
-    用 masscan 扫描全端口，返回开放端口列表（int）。
-    需要 root 权限运行 masscan。
+    用 curl 探测 ip:port 是否有 HTTP 服务（xray 扫描前的预筛）。
+    返回 True 表示该端口有 HTTP/HTTPS 响应。
     """
-    out = _run(f"masscan {ip} -p 1-65535 --rate={rate} --wait 2 -oG -", timeout=timeout)
-    ports = []
-    # masscan -oG 输出格式：Host: 1.2.3.4 ()  Ports: 8080/open/tcp//http//
-    for match in re.finditer(r'Ports:\s*([\d,/a-z ]+)', out, re.IGNORECASE):
-        for port_match in re.finditer(r'(\d+)/open', match.group(1)):
-            ports.append(int(port_match.group(1)))
-    return sorted(set(ports))
-
-
-def _httpx_probe(ip: str, ports: list, timeout: int = 20) -> list:
-    """
-    用 httpx 对给定端口探活，返回可访问的 URL 列表。
-    格式：["http://1.2.3.4:8080", "https://1.2.3.4:8443", ...]
-    """
-    if not ports:
-        return []
-
-    # 构造 targets 文件内容：ip:port 每行一个
-    targets = "\n".join(f"{ip}:{p}" for p in ports)
-    # 用 echo 管道传给 httpx，-silent 只输出成功的 URL
-    cmd = f"echo '{targets}' | httpx -silent -no-fallback -timeout 5"
-    out = _run(cmd, timeout=timeout)
-    urls = [line.strip() for line in out.splitlines() if line.strip().startswith("http")]
-    return urls
+    for scheme in ("http", "https"):
+        out = _run(
+            f"curl -sk -o /dev/null -w '%{{http_code}}' --connect-timeout 3 --max-time 5 {scheme}://{ip}:{port}/",
+            timeout=timeout
+        )
+        code = out.strip().lstrip("'").rstrip("'")
+        if code.isdigit() and int(code) > 0:
+            return True
+    return False
 
 
 def dynamic_discover_port(ip: str, service_name: str) -> Optional[int]:
     """
     动态发现端口，流程：
-      1. masscan 扫全端口，获取开放端口列表
-      2. httpx 探活，找出 HTTP/HTTPS 服务
-      3. 优先返回与 service_name 默认端口最接近的端口；
-         若找不到则返回第一个可访问端口
+      1. 遍历候选端口列表，用 curl 探测 HTTP/HTTPS 响应
+      2. 收集所有存活端口
+      3. 优先返回非 80/443 的端口（更可能是目标服务）
+      4. 找不到返回 None（调用方 fallback 到默认 80）
 
-    返回端口号（int），找不到返回 None。
+    不依赖 masscan/httpx，只需要 curl（系统自带）。
     """
-    print(f"[Recon] YAML miss for '{service_name}', starting dynamic discovery on {ip}...")
+    print(f"[Recon] YAML miss for '{service_name}', probing {ip} on {len(_CANDIDATE_PORTS)} candidate ports...")
 
-    # Step 1: masscan
-    open_ports = _masscan_open_ports(ip)
-    if not open_ports:
-        print(f"[Recon] masscan found no open ports on {ip}, falling back to default 80")
+    live_ports = []
+    for port in _CANDIDATE_PORTS:
+        if _xray_probe_port(ip, port):
+            live_ports.append(port)
+            print(f"[Recon] HTTP service found on {ip}:{port}")
+
+    if not live_ports:
+        print(f"[Recon] No HTTP services found on candidate ports, falling back to default 80")
         return None
 
-    print(f"[Recon] masscan open ports: {open_ports}")
-
-    # Step 2: httpx 探活
-    http_urls = _httpx_probe(ip, open_ports)
-    if not http_urls:
-        print(f"[Recon] httpx found no HTTP services, returning first open port: {open_ports[0]}")
-        return open_ports[0]
-
-    print(f"[Recon] httpx live URLs: {http_urls}")
-
-    # Step 3: 从 URL 里解析端口
-    http_ports = []
-    for url in http_urls:
-        m = re.search(r':(\d+)(?:/|$)', url)
-        if m:
-            http_ports.append(int(m.group(1)))
-        elif url.startswith("https://"):
-            http_ports.append(443)
-        else:
-            http_ports.append(80)
-
-    # 优先返回非 80/443 的端口（更可能是目标服务）
-    non_default = [p for p in http_ports if p not in (80, 443)]
+    # 优先返回非 80/443 的端口
+    non_default = [p for p in live_ports if p not in (80, 443)]
     if non_default:
         return non_default[0]
 
-    return http_ports[0] if http_ports else None
+    return live_ports[0]
 
 
 # ---------------------------------------------------------------------------

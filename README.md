@@ -136,10 +136,15 @@ git checkout dynamic-port-discovery
 
 ### 2. 安装二进制工具
 
+**Linux：**
 ```bash
-# 安装 masscan / httpx / xray
 sudo ./install_tools.sh
 ```
+
+**Windows（PowerShell）：**
+1. 下载 xray：https://github.com/chaitin/xray/releases/tag/1.9.11
+2. 选择 `xray_windows_amd64.exe.zip`，解压
+3. 将 `xray.exe` 所在目录加入系统 PATH
 
 ### 3. 安装 Python 依赖
 

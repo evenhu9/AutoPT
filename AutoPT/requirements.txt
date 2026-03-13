@@ -1,3 +1,9 @@
+# Python dependencies - install with: pip install -r requirements.txt
+#
+# Binary tool dependencies (masscan / httpx / xray) are NOT pip packages.
+# Install them by running (from project root):
+#   sudo ./install_tools.sh
+
 beautifulsoup4==4.12.3
 ipython==8.12.3
 jsonlines==4.0.0

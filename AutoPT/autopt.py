@@ -27,7 +27,7 @@ from IPython.display import Image, display
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from langchain_core.language_models import BaseChatModel
-from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool
+from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool, set_target_ip
 from utils import retry
 from psm import AgentState, States, router
 
@@ -158,6 +158,8 @@ class AutoPT:
                 f"Final Goal : {target}\n"
             )
         problem = self.states.problem
+        # 注入靶机 IP，供 ServicePort 动态发现兜底使用
+        set_target_ip(ip_addr)
         asyncio.run(graph.ainvoke(
             {"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0},
             config={"recursion_limit": self.config['psm']['sys_iterations']}

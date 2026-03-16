@@ -32,6 +32,10 @@ ai:
   nvidia_key: ""
   # hyperparameters
   temperature: 0.5
+  # API超时配置（秒）- thinking模型需要较长时间
+  request_timeout: 300
+  # 失败重试次数
+  max_retries: 2
 
 
 # 测试配置

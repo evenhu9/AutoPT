@@ -71,7 +71,15 @@ class AutoPT:
         if 'llama31' == model_name:
             llm = ChatNVIDIA(temperature=config['ai']['temperature'], model=model, api_key=config['ai']['nvidia_key'])
         else:
-            llm = ChatOpenAI(temperature=config['ai']['temperature'], model=model, openai_api_key=config['ai']['openai_key'], openai_api_base=config['ai']['openai_base'])
+            # 添加超时配置，避免 LLM 响应卡住
+            llm = ChatOpenAI(
+                temperature=config['ai']['temperature'], 
+                model=model, 
+                openai_api_key=config['ai']['openai_key'], 
+                openai_api_base=config['ai']['openai_base'],
+                request_timeout=config['ai'].get('request_timeout', 300),  # 默认5分钟
+                max_retries=config['ai'].get('max_retries', 2)  # 默认重试2次
+            )
         return llm, res_name
 
 

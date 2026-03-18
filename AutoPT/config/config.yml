@@ -22,6 +22,7 @@ ai:
 
 
 # 测试配置
+# 注意: 路径使用正斜杠 / 或相对路径均可，程序会自动转换为当前系统格式
 test:
   test_path: "../bench/data.jsonl"
   output_path: "result"

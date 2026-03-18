@@ -9,6 +9,8 @@ import time
 import threading
 import subprocess
 import glob
+import platform
+import shutil
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -21,9 +23,36 @@ from AutoPT.utils import load_config
 app = Flask(__name__, static_folder='frontend', static_url_path='')
 CORS(app)
 
-# 修复Docker连接: 强制使用unix socket而非tcp
-# 沙箱环境中DOCKER_HOST可能被设置为tcp://localhost:2375但daemon监听在socket
-os.environ['DOCKER_HOST'] = 'unix:///var/run/docker.sock'
+# ==================== 跨平台 Docker 环境检测 ====================
+def _setup_docker_env():
+    """
+    智能设置 DOCKER_HOST 环境变量，兼容 Windows / macOS / Linux。
+    - Windows: 优先 npipe，回退 tcp://localhost:2375
+    - Linux/macOS: 优先 unix socket，若环境变量已设置且无效则清除
+    """
+    current_host = os.environ.get('DOCKER_HOST', '')
+    system = platform.system()
+    
+    if system == 'Windows':
+        # Windows 上 Docker Desktop 默认使用 named pipe
+        # 如果当前设置了 unix socket（不适用于 Windows），清除它
+        if 'unix://' in current_host:
+            os.environ.pop('DOCKER_HOST', None)
+        # 如果没有设置，让 Docker CLI 自动检测（默认会用 npipe）
+    else:
+        # Linux / macOS
+        socket_path = '/var/run/docker.sock'
+        if os.path.exists(socket_path):
+            # Socket 存在，强制使用它（覆盖可能错误的 tcp 设置）
+            os.environ['DOCKER_HOST'] = f'unix://{socket_path}'
+        elif current_host.startswith('tcp://'):
+            # 保持现有 tcp 设置（可能是远程 Docker）
+            pass
+        else:
+            # 清除无效设置，让 Docker CLI 自动检测
+            os.environ.pop('DOCKER_HOST', None)
+
+_setup_docker_env()
 
 # 全局状态
 task_manager = {
@@ -243,6 +272,32 @@ def _check_docker_daemon():
         return False, f'Docker检查失败: {str(e)}'
 
 
+def _get_docker_compose_cmd():
+    """
+    获取可用的 docker compose 命令，兼容 V1 和 V2。
+    V2: docker compose (子命令)
+    V1: docker-compose (独立二进制)
+    返回命令列表，如 ['docker', 'compose'] 或 ['docker-compose']
+    """
+    # 优先尝试 V2 (docker compose)
+    try:
+        result = subprocess.run(
+            ['docker', 'compose', 'version'],
+            capture_output=True, encoding='utf-8', timeout=5
+        )
+        if result.returncode == 0:
+            return ['docker', 'compose']
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    # 回退到 V1 (docker-compose)
+    if shutil.which('docker-compose'):
+        return ['docker-compose']
+    
+    # 都不可用，返回 V2 格式（让后续报错更明确）
+    return ['docker', 'compose']
+
+
 @app.route('/api/docker/start', methods=['POST'])
 def start_docker_env():
     """启动Docker漏洞环境"""
@@ -259,8 +314,9 @@ def start_docker_env():
     
     try:
         env_dir = os.path.dirname(compose_path)
+        compose_cmd = _get_docker_compose_cmd()
         result = subprocess.run(
-            ['docker', 'compose', 'up', '-d'],
+            compose_cmd + ['up', '-d'],
             capture_output=True, encoding='utf-8', timeout=300,
             cwd=env_dir
         )
@@ -302,8 +358,9 @@ def stop_docker_env():
     
     try:
         env_dir = os.path.dirname(compose_path)
+        compose_cmd = _get_docker_compose_cmd()
         result = subprocess.run(
-            ['docker', 'compose', 'down', '-v'],
+            compose_cmd + ['down', '-v'],
             capture_output=True, encoding='utf-8', timeout=60,
             cwd=env_dir
         )

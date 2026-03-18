@@ -24,9 +24,7 @@ class InteractiveShell:
         @param xray_path: xray可执行文件路径，为None时自动检测
         """
         self.timeout = timeout
-        self.system = platform.system()  # 'Windows', 'Darwin', 'Linux'
-        self.is_windows = self.system == 'Windows'
-        self.is_macos = self.system == 'Darwin'
+        self.is_windows = platform.system() == 'Windows'
         
         # 自动检测xray路径
         if xray_path:
@@ -43,7 +41,10 @@ class InteractiveShell:
             raise Exception(f"初始化本地Shell失败: {e}")
 
     def _detect_xray_path(self) -> str:
-        """自动检测xray可执行文件路径，支持 Windows / macOS / Linux"""
+        """自动检测xray可执行文件路径"""
+        # 搜索路径列表
+        search_paths = []
+        
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
         if self.is_windows:
@@ -52,25 +53,7 @@ class InteractiveShell:
                 os.path.join(base_dir, 'xray', 'xray_windows_amd64.exe'),
                 os.path.join(base_dir, '..', 'xray', 'xray.exe'),
             ]
-        elif self.is_macos:
-            # macOS: 区分 Intel (amd64) 和 Apple Silicon (arm64)
-            arch = platform.machine()  # 'x86_64' or 'arm64'
-            if arch == 'arm64':
-                candidates = [
-                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_arm64'),
-                    os.path.join(base_dir, 'xray', 'xray_darwin_arm64'),
-                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_amd64'),
-                    os.path.join(base_dir, 'xray', 'xray_darwin_amd64'),
-                    os.path.join(base_dir, '..', 'xray', 'xray'),
-                ]
-            else:
-                candidates = [
-                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_amd64'),
-                    os.path.join(base_dir, 'xray', 'xray_darwin_amd64'),
-                    os.path.join(base_dir, '..', 'xray', 'xray'),
-                ]
         else:
-            # Linux
             candidates = [
                 os.path.join(base_dir, '..', 'xray', 'xray_linux_amd64'),
                 os.path.join(base_dir, 'xray', 'xray_linux_amd64'),
@@ -83,8 +66,7 @@ class InteractiveShell:
                 return abs_path
         
         # 尝试在PATH中查找
-        xray_name = 'xray.exe' if self.is_windows else 'xray'
-        xray_in_path = shutil.which(xray_name)
+        xray_in_path = shutil.which('xray')
         if xray_in_path:
             return xray_in_path
         
@@ -133,9 +115,9 @@ class InteractiveShell:
         """通过subprocess在本地执行命令"""
         try:
             if self.is_windows:
-                # Windows下使用cmd，设置UTF-8代码页
+                # Windows下使用cmd
                 result = subprocess.run(
-                    f'chcp 65001 >nul 2>&1 & {command}',
+                    command,
                     shell=True,
                     capture_output=True,
                     timeout=self.timeout,
@@ -144,10 +126,9 @@ class InteractiveShell:
                     cwd=os.path.expanduser('~')
                 )
             else:
-                # Linux/Mac下自动检测可用shell
-                shell_path = self._detect_shell()
+                # Linux/Mac下使用bash
                 result = subprocess.run(
-                    [shell_path, '-c', command],
+                    ['/bin/bash', '-c', command],
                     capture_output=True,
                     timeout=self.timeout,
                     encoding='utf-8',
@@ -183,19 +164,13 @@ class InteractiveShell:
             # 确定xray工作目录
             xray_dir = os.path.dirname(self.xray_path) if os.path.exists(self.xray_path) else '.'
             
-            # Windows下需要特殊处理编码
-            extra_kwargs = {}
-            if self.is_windows:
-                extra_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            
             result = subprocess.run(
                 full_command,
                 capture_output=True,
                 timeout=self.timeout,
                 cwd=xray_dir,
                 encoding='utf-8',
-                errors='replace',
-                **extra_kwargs
+                errors='replace'
             )
             
             output = (result.stdout or "")
@@ -228,18 +203,6 @@ class InteractiveShell:
     def close(self):
         """兼容原有接口"""
         pass
-
-    def _detect_shell(self) -> str:
-        """检测可用的 shell 路径（Linux/macOS 通用）"""
-        # 优先使用 SHELL 环境变量
-        env_shell = os.environ.get('SHELL')
-        if env_shell and os.path.exists(env_shell):
-            return env_shell
-        # macOS 默认 zsh，Linux 默认 bash
-        for candidate in ['/bin/bash', '/bin/zsh', '/bin/sh']:
-            if os.path.exists(candidate):
-                return candidate
-        return '/bin/sh'
 
     def __enter__(self):
         return self

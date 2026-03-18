@@ -30,7 +30,7 @@ def main():
     args = argument_parser()
     pname = str(args.name)
     ip_addr = str(args.ip_addr)
-    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'config.yml')
+    config_file_path = 'config/config.yml'
     config = load_config(config_file_path)
 
     models = config['test']['models']

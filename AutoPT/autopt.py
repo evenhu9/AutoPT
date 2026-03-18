@@ -76,14 +76,7 @@ class AutoPT:
             model = model_name
             folder = model_name.replace('/', '_')
         
-        # 跨平台路径拼接：替换漏洞名中的 / 和 \ 为 _
-        safe_pname = self.pname.replace('/', '_').replace('\\', '_')
-        # 路径基于 AutoPT 模块目录解析（兼容命令行和Web两种启动方式）
-        autopt_dir = os.path.dirname(os.path.abspath(__file__))
-        output_path = config['test']['output_path']
-        if not os.path.isabs(output_path):
-            output_path = os.path.join(autopt_dir, output_path)
-        res_name = os.path.join(output_path, folder, f"{safe_pname}_{model_name}_FSM.jsonl")
+        res_name = f"{config['test']['output_path']}/{folder}/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         
         if model_name == 'llama31':
             self._log("[WARNING] Llama模型已不再支持，回退到gpt-4o-mini")
@@ -168,12 +161,7 @@ class AutoPT:
     def state_machine_run(self, graph: CompiledGraph, name: str, ip_addr: str):
         """执行渗透测试"""
         # 从基准数据中获取目标信息
-        # 跨平台路径解析：相对路径基于 AutoPT 模块目录
-        autopt_dir = os.path.dirname(os.path.abspath(__file__))
-        test_path = self.config['test']['test_path']
-        if not os.path.isabs(test_path):
-            test_path = os.path.normpath(os.path.join(autopt_dir, test_path))
-        with jsonlines.open(test_path, 'r') as reader:
+        with jsonlines.open(self.config['test']['test_path'], 'r') as reader:
             target = None
             for vul in reader:
                 if vul['name'] == name:

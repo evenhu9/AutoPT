@@ -56,6 +56,16 @@ When you fail after multiple attempts, respond with:
         self.config = config
         self.llm = llm  # 用于 check_state 的 LLM 判断
         self.raw_outputs = {"Scan": "", "Inquire": "", "Exploit": ""}
+        self.log_callback = None  # 由 AutoPT 注入，用于向 Web 前端发送实时日志
+
+    def _emit_log(self, message):
+        """发送日志到回调函数（如有），同时打印到控制台"""
+        print(message)
+        if self.log_callback:
+            try:
+                self.log_callback(message)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # 工具方法（与原版相同，保持不变）
@@ -246,6 +256,7 @@ When you fail after multiple attempts, respond with:
     # ------------------------------------------------------------------
 
     async def agent_state(self, state: AgentState, agent, tools, sname: str) -> dict:
+        self._emit_log(f"[状态机] 进入 {sname} Agent 节点")
         if sname == 'Exploit':
             max_iterations = self.config['psm']['exp_iterations']
         elif sname == 'Inquire':
@@ -274,6 +285,7 @@ When you fail after multiple attempts, respond with:
                 tool_name = i[0].tool
                 tool_input = i[0].tool_input
                 raw_tool_output = str(i[1])
+                self._emit_log(f"[{sname}] 调用工具: {tool_name}({tool_input[:120]}...)" if len(str(tool_input)) > 120 else f"[{sname}] 调用工具: {tool_name}({tool_input})")
                 if tool_name == "EXECMD" and sname in self.raw_outputs:
                     if self.raw_outputs[sname]:
                         self.raw_outputs[sname] += "\n" + raw_tool_output
@@ -311,6 +323,7 @@ When you fail after multiple attempts, respond with:
           2. 正则兜底（check_str）—— LLM 不可用时启用
         两层都基于 EXECMD 真实工具输出，不信任 LLM 生成的历史文本。
         """
+        self._emit_log(f"[状态机] 进入 Check 节点 (第 {state['check_count']} 次检查)")
         exploit_output = self.raw_outputs.get("Exploit", "")
 
         # ---- 提取 target 字段供判断 ----
@@ -329,6 +342,7 @@ When you fail after multiple attempts, respond with:
         # ---- Step 2: 根据判断结果走分支 ----
         if llm_result is True:
             # LLM 确认成功
+            self._emit_log("[Check] ✅ LLM判断: 渗透测试成功!")
             check_message = (
                 f"Successfully exploited the vulnerability, "
                 f"a total of {state['check_count']} steps were attempted"
@@ -347,11 +361,13 @@ When you fail after multiple attempts, respond with:
         )
 
         if check_code == 0:
+            self._emit_log("[Check] ✅ 正则兜底判断: 渗透测试成功!")
             check_message = (
                 f"Successfully exploited the vulnerability, "
                 f"a total of {check_count} steps were attempted"
             )
         elif check_code in [1, 2]:
+            self._emit_log(f"[Check] ❌ 利用失败 (code={check_code})，准备重试...")
             last_summary = self._summarize_message_for_prompt(
                 str(state["message"][-1].content), max_chars=500
             )
@@ -377,6 +393,7 @@ When you fail after multiple attempts, respond with:
         }
 
     def vuln_select_state(self, state: AgentState, name: str = "Vuln_select") -> dict:
+        self._emit_log("[状态机] 进入 Vuln_select 节点")
         if state['check_count'] == 0:
             scan_res = state["message"][-1]
             scan_text = self.raw_outputs.get("Scan", "") or scan_res.content
@@ -384,8 +401,10 @@ When you fail after multiple attempts, respond with:
             vulns = self._filter_and_rank_vulns(vulns)
             if len(vulns) != 0:
                 selected = vulns[0]
+                self._emit_log(f"[Vuln_select] 发现 {len(vulns)} 个漏洞，选择: {selected.get('vuln', 'unknown')}")
                 vuln_select_message = f"I think we can try this vulnerability. The vulnerability information is as follows {selected}"
             else:
+                self._emit_log("[Vuln_select] ⚠️ 扫描未发现漏洞，终止程序")
                 vuln_select_message = "SCAN FAILED: No vulnerabilities detected by xray on target. Terminating program."
                 message = HumanMessage(content=vuln_select_message)
                 self.history.append(vuln_select_message)

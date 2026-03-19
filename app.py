@@ -403,6 +403,7 @@ def _run_engine_task(task):
         from autopt import AutoPT
 
         # 初始化状态机和引擎（与原始 main.py 逻辑一致）
+        log_callback("[系统] 初始化引擎...")
         states = States(task['name'], config)
         autopt = AutoPT(
             task['name'], config, task['ip_addr'], states,
@@ -436,7 +437,12 @@ def _run_engine_task(task):
                 raise e
 
         runtime = time.time() - start_time
-        result = autopt.log(0, runtime)
+        
+        # 安全调用 log (处理空历史记录的情况)
+        try:
+            result = autopt.log(0, runtime)
+        except (IndexError, KeyError):
+            result = {'count': 0, 'flag': 'failed', 'runtime': runtime}
 
         # 保存结果到 jsonl 文件（与原始 main.py 一致）
         import jsonlines
@@ -447,11 +453,12 @@ def _run_engine_task(task):
             f.write(result)
 
         task['status'] = 'completed'
-        task['result'] = result['flag']
+        task['result'] = result.get('flag', 'failed')
         task['end_time'] = datetime.now().isoformat()
         task['runtime'] = round(runtime, 1)
 
-        log_callback(f"[系统] 任务完成: {result['flag']} | 耗时: {runtime:.1f}s")
+        flag_emoji = '🎉' if result.get('flag') == 'success' else '❌'
+        log_callback(f"[系统] {flag_emoji} 任务完成: {result.get('flag', 'unknown')} | 耗时: {runtime:.1f}s")
 
     except Exception as e:
         task['status'] = 'failed'
@@ -504,7 +511,7 @@ def system_info():
     xray_info = ''
     try:
         from terminal import InteractiveShell
-        shell = InteractiveShell(timeout=10)
+        shell = InteractiveShell(timeout=10, local_mode=True)
         xray_info = 'xray路径: ' + shell.xray_path
         xray_available = os.path.exists(shell.xray_path)
         shell.close()

@@ -223,11 +223,15 @@
                             </div>
                             <div class="form-group">
                                 <label>AI模型</label>
-                                <select id="attackModel" class="form-control">
-                                    <option value="gpt35turbo">GPT-3.5-turbo（推荐·快速）</option>
+                                <select id="attackModel" class="form-control" onchange="onModelSelectChange()">
                                     <option value="gpt4omini" selected>GPT-4o-mini（推荐·均衡）</option>
+                                    <option value="gpt35turbo">GPT-3.5-turbo（快速·低成本）</option>
                                     <option value="gpt4o">GPT-4o（高级·精准）</option>
+                                    <option value="claude35">Claude 3.5 Sonnet（Anthropic）</option>
+                                    <option value="llama31">Llama 3.1 70B（NVIDIA API）</option>
+                                    <option value="__custom__">自定义模型...</option>
                                 </select>
+                                <input type="text" id="attackModelCustom" class="form-control" placeholder="输入自定义模型名称（如 deepseek-chat, qwen-plus 等）" style="display:none;margin-top:8px">
                             </div>
                             <button class="btn btn-primary btn-full" id="startAttackBtn" onclick="startAttack()">
                                 <i class="ri-rocket-line"></i> 启动渗透测试
@@ -349,11 +353,15 @@
                             </div>
                             <div class="form-group">
                                 <label>默认模型</label>
-                                <select id="cfgModel" class="form-control">
-                                    <option value="gpt35turbo">GPT-3.5-turbo（快速）</option>
+                                <select id="cfgModel" class="form-control" onchange="onCfgModelChange()">
                                     <option value="gpt4omini">GPT-4o-mini（均衡）</option>
+                                    <option value="gpt35turbo">GPT-3.5-turbo（快速）</option>
                                     <option value="gpt4o">GPT-4o（精准）</option>
+                                    <option value="claude35">Claude 3.5 Sonnet</option>
+                                    <option value="llama31">Llama 3.1 70B</option>
+                                    <option value="__custom__">自定义模型...</option>
                                 </select>
+                                <input type="text" id="cfgModelCustom" class="form-control" placeholder="输入模型名称" style="display:none;margin-top:8px">
                             </div>
                         </div>
                     </div>

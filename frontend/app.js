@@ -94,7 +94,8 @@ async function loadDashboard() {
     if (cfgRes.status === 'ok' && cfgRes.data.test) {
         const models = cfgRes.data.test.models || [];
         const modelNames = {
-            gpt35turbo: 'GPT-3.5', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o'
+            gpt35turbo: 'GPT-3.5', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o',
+            claude35: 'Claude 3.5', llama31: 'Llama 3.1'
         };
         document.getElementById('statModel').textContent = modelNames[models[0]] || models[0] || 'N/A';
     }
@@ -233,10 +234,14 @@ function closeModal() {
 async function startAttack() {
     const name = document.getElementById('attackVuln').value;
     const ip = document.getElementById('attackIP').value;
-    const model = document.getElementById('attackModel').value;
+    const modelSelect = document.getElementById('attackModel').value;
+    const model = modelSelect === '__custom__' 
+        ? document.getElementById('attackModelCustom').value.trim() 
+        : modelSelect;
 
     if (!name) { showToast('请选择目标漏洞', 'warning', '参数缺失'); return; }
     if (!ip) { showToast('请输入目标IP地址', 'warning', '参数缺失'); return; }
+    if (!model) { showToast('请输入自定义模型名称', 'warning', '参数缺失'); return; }
 
     const btn = document.getElementById('startAttackBtn');
     btn.disabled = true;
@@ -531,7 +536,21 @@ async function loadConfig() {
     document.getElementById('cfgApiKey').value = c.ai?.openai_key || '';
     document.getElementById('cfgTemp').value = c.ai?.temperature || 0.5;
     document.getElementById('cfgTempVal').textContent = c.ai?.temperature || 0.5;
-    document.getElementById('cfgModel').value = (c.test?.models || [])[0] || 'gpt4omini';
+    
+    // 处理模型选择器回显（支持预设+自定义）
+    const currentModel = (c.test?.models || [])[0] || 'gpt4omini';
+    const cfgModelSel = document.getElementById('cfgModel');
+    const cfgModelCustom = document.getElementById('cfgModelCustom');
+    const presetModels = ['gpt35turbo', 'gpt4omini', 'gpt4o', 'claude35', 'llama31'];
+    if (presetModels.includes(currentModel)) {
+        cfgModelSel.value = currentModel;
+        cfgModelCustom.style.display = 'none';
+    } else {
+        cfgModelSel.value = '__custom__';
+        cfgModelCustom.value = currentModel;
+        cfgModelCustom.style.display = 'block';
+    }
+    
     document.getElementById('cfgSysIter').value = c.psm?.sys_iterations || 15;
     document.getElementById('cfgExpIter').value = c.psm?.exp_iterations || 3;
     document.getElementById('cfgQueryIter').value = c.psm?.query_iterations || 1;
@@ -539,7 +558,30 @@ async function loadConfig() {
     document.getElementById('cfgTimeout').value = c.local?.command_timeout || 120;
 }
 
+// ==================== 自定义模型选择交互 ====================
+function onModelSelectChange() {
+    const sel = document.getElementById('attackModel');
+    const custom = document.getElementById('attackModelCustom');
+    custom.style.display = sel.value === '__custom__' ? 'block' : 'none';
+}
+
+function onCfgModelChange() {
+    const sel = document.getElementById('cfgModel');
+    const custom = document.getElementById('cfgModelCustom');
+    custom.style.display = sel.value === '__custom__' ? 'block' : 'none';
+}
+
 async function saveConfig() {
+    const cfgModelVal = document.getElementById('cfgModel').value;
+    const modelName = cfgModelVal === '__custom__'
+        ? document.getElementById('cfgModelCustom').value.trim()
+        : cfgModelVal;
+    
+    if (!modelName) {
+        showToast('请输入自定义模型名称', 'warning', '参数缺失');
+        return;
+    }
+
     const config = {
         ai: {
             openai_base: document.getElementById('cfgApiBase').value,
@@ -552,7 +594,7 @@ async function saveConfig() {
             output_path: 'result',
             save_history: true,
             save_command: true,
-            models: [document.getElementById('cfgModel').value]
+            models: [modelName]
         },
         psm: {
             sys_iterations: parseInt(document.getElementById('cfgSysIter').value),

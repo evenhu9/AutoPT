@@ -5,30 +5,73 @@ import subprocess
 import os
 
 class InteractiveShell:
-    def __init__(self, hostname='192.168.111.11', port=22, username='hyw', password='260259', timeout=30):
-        self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(hostname, username=username, password=password, port=port)
-        self.session = self.client.invoke_shell()
+    def __init__(self, hostname=None, port=22, username=None, password=None, timeout=30, local_mode=None):
+        """
+        交互式Shell，支持两种模式：
+        - SSH远程模式: 提供 hostname/username/password 时使用 Paramiko SSH 连接
+        - 本地模式: 不提供 SSH 参数时，在本机直接执行命令（subprocess）
+        
+        local_mode: 显式指定 True/False，None 时自动检测
+        """
         self.timeout = timeout
-        # Wait for shell to be ready
-        time.sleep(1)
-        # Clear initial output
-        while self.session.recv_ready():
-            self.session.recv(1024)
-        # Test connection
-        try:
-            self.execute_command("pwd")
-        except Exception as e:
-            self.close()
-            raise Exception(f"Failed to initialize shell: {e}")
+        self.local_mode = local_mode
+        self.client = None
+        self.session = None
+        
+        # 自动检测模式：如果没有提供 SSH 凭据，使用本地模式
+        if self.local_mode is None:
+            self.local_mode = (hostname is None or username is None or password is None)
+        
+        if not self.local_mode:
+            # SSH 远程模式
+            try:
+                self.client = paramiko.SSHClient()
+                self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                self.client.connect(hostname, username=username, password=password, port=port)
+                self.session = self.client.invoke_shell()
+                # Wait for shell to be ready
+                time.sleep(1)
+                # Clear initial output
+                while self.session.recv_ready():
+                    self.session.recv(1024)
+                # Test connection
+                try:
+                    self.execute_command("pwd")
+                except Exception as e:
+                    self.close()
+                    raise Exception(f"Failed to initialize shell: {e}")
+            except Exception as e:
+                print(f"[WARNING] SSH 连接失败 ({hostname}:{port}): {e}，回退到本地模式")
+                self.local_mode = True
+                self.client = None
+                self.session = None
+        
+        # 确定 xray 可执行文件路径
+        self.xray_path = self._find_xray_path()
+
+    def _find_xray_path(self) -> str:
+        """查找 xray 可执行文件路径"""
+        # 按优先级搜索
+        candidates = [
+            os.path.join(os.path.dirname(__file__), '..', 'xray', 'xray_linux_amd64'),
+            os.path.join(os.path.dirname(__file__), '..', 'xray', 'xray_windows_amd64.exe'),
+            os.path.join(os.path.dirname(__file__), '..', 'xray', 'xray_darwin_amd64'),
+        ]
+        for c in candidates:
+            p = os.path.abspath(c)
+            if os.path.exists(p):
+                return p
+        # 尝试 which
+        import shutil
+        xray = shutil.which('xray')
+        if xray:
+            return xray
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'xray', 'xray_linux_amd64'))
 
     def execute_command(self, command:str):
         """
-        Execute a command in a interactive kali docker shell on the local machine.
-        Initially, we are in the /root/ directory.
-
-        @param cmd: The command to execute.
+        Execute a command in a interactive shell.
+        In local mode, uses subprocess; in SSH mode, uses paramiko session.
         """
         # clean the command
         command = command.strip()
@@ -44,16 +87,50 @@ class InteractiveShell:
         if 'man ' in command:
             return "man is not supported in this environment"
 
-        # xray 命令在宿主机上执行
+        # xray 命令始终在本地执行
         if "xray" in command:
             return self._execute_xray_local(command)
         
         # curl 命令添加 -s 标志以禁用进度条
         if "curl" in command and " -s" not in command:
-            # 检查是否已有其他标志，在URL前添加 -s
             command = command.replace("curl ", "curl -s ", 1)
         
-        # 其他命令通过 SSH 在远程执行
+        # 根据模式执行
+        if self.local_mode:
+            return self._execute_local(command)
+        else:
+            return self._execute_ssh(command)
+
+    def _execute_local(self, command: str) -> str:
+        """本地模式：使用 subprocess 执行命令"""
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                timeout=self.timeout,
+                encoding='utf-8',
+                errors='replace',
+                cwd='/root' if os.path.exists('/root') else os.path.expanduser('~')
+            )
+            output = (result.stdout or "")
+            if result.stderr:
+                output += "\n" + result.stderr
+            
+            if not output.strip():
+                if result.returncode != 0:
+                    output = f"Command exited with code {result.returncode}"
+                else:
+                    output = "(no output)"
+            
+            return self.omit(command, output)
+        except subprocess.TimeoutExpired:
+            return f"Command execution timeout after {self.timeout} seconds!"
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
+
+    def _execute_ssh(self, command: str) -> str:
+        """SSH远程模式：使用 paramiko session 执行命令"""
         if self.session is None:
             raise Exception("No session available.")
 
@@ -120,13 +197,12 @@ class InteractiveShell:
 
     def _execute_xray_local(self, command: str) -> str:
         """
-        Execute xray command on the local Windows host machine.
-        xray is located at: c:\\Users\\86138\\Desktop\\毕设\\AutoPT\\xray\\xray_windows_amd64.exe
+        Execute xray command locally.
+        Uses self.xray_path found during initialization.
         """
         try:
-            # 获取 xray 可执行文件的路径
-            xray_dir = os.path.join(os.path.dirname(__file__), '..', 'xray')
-            xray_exe = os.path.abspath(os.path.join(xray_dir, 'xray_windows_amd64.exe'))
+            xray_exe = self.xray_path
+            xray_dir = os.path.dirname(xray_exe)
             
             # 解析命令参数
             # 例如: "xray ws --url http://target.com" -> ["ws", "--url", "http://target.com"]
@@ -142,9 +218,9 @@ class InteractiveShell:
                 full_command,
                 capture_output=True,
                 timeout=self.timeout,
-                cwd=xray_dir,
+                cwd=xray_dir if os.path.isdir(xray_dir) else None,
                 encoding='utf-8',
-                errors='replace'  # 替换无法解码的字符而不是抛出异常
+                errors='replace'
             )
             
             # 合并 stdout 和 stderr
@@ -152,7 +228,6 @@ class InteractiveShell:
             if result.stderr:
                 output += "\n" + result.stderr
             
-            # 如果命令执行失败但有输出，返回输出；否则返回错误信息
             if result.returncode != 0:
                 if not output.strip():
                     output = f"[ERROR] xray command exited with code {result.returncode}"
@@ -161,6 +236,8 @@ class InteractiveShell:
             
         except subprocess.TimeoutExpired:
             return f"[ERROR] xray command timeout after {self.timeout} seconds"
+        except FileNotFoundError:
+            return f"[ERROR] xray not found at {self.xray_path}. Please install xray first."
         except Exception as e:
             return f"[ERROR] Failed to execute xray: {str(e)}"
 

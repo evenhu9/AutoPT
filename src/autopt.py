@@ -44,15 +44,29 @@ os.environ["LANGCHAIN_API_KEY"] = ""
 
 
 class AutoPT:
-    def __init__(self, pname, config, ip_addr, states):
+    def __init__(self, pname, config, ip_addr, states, log_callback=None):
         self.config = config
         self.models = self.config['test']['models']
         self.pname = pname
         self.ip_addr = ip_addr
         self.states = states
         self.flag = 'failed'
+        self.log_callback = log_callback
+        # 同步日志回调到 States，以便状态转换时也能发日志
+        if log_callback:
+            self.states.log_callback = log_callback
+
+    def _emit_log(self, message):
+        """发送日志到回调函数（如有），同时打印到控制台"""
+        print(message)
+        if self.log_callback:
+            try:
+                self.log_callback(message)
+            except Exception:
+                pass
 
     def llm_init(self, config: dict, model_name: str) -> BaseChatModel:
+        self._emit_log(f"[引擎] 初始化LLM模型: {model_name}")
         if 'gpt4omini' == model_name:
             model = "gpt-4o-mini-2024-07-18"
             res_name = f"{config['test']['output_path']}/4omini/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
@@ -65,9 +79,14 @@ class AutoPT:
         elif 'claude35' == model_name:
             model = "claude-3-5-sonnet-20240620"
             res_name = f"{config['test']['output_path']}/claude35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
-        else:
+        elif 'gpt35turbo' == model_name:
             model = "gpt-3.5-turbo-0125"
             res_name = f"{config['test']['output_path']}/35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+        else:
+            # 自定义模型名直接传递给 OpenAI 兼容 API
+            model = model_name
+            safe_name = model_name.replace('/', '_').replace(':', '_')
+            res_name = f"{config['test']['output_path']}/custom/{self.pname.replace('/', '_')}_{safe_name}_FSM.jsonl"
 
         if 'llama31' == model_name:
             llm = ChatNVIDIA(temperature=config['ai']['temperature'], model=model, api_key=config['ai']['nvidia_key'])
@@ -78,9 +97,11 @@ class AutoPT:
                 openai_api_key=config['ai']['openai_key'],
                 openai_api_base=config['ai']['openai_base']
             )
+        self._emit_log(f"[引擎] LLM初始化完成: {model} (temperature={config['ai']['temperature']})")
         return llm, res_name
 
     def state_machine_init(self, llm) -> CompiledGraph:
+        self._emit_log("[引擎] 初始化渗透测试状态机...")
         # ---- 关键改动：LLM 初始化后注入 States，供 check_state 使用 ----
         self.states.llm = llm
 
@@ -138,10 +159,12 @@ class AutoPT:
         if self.config['psm']['draw_graph']:
             display(Image(autopt_graph.get_graph(xray=True).draw_mermaid_png(output_file_path='./graph.png')))
 
+        self._emit_log("[引擎] 状态机初始化完成: Scan → Vuln_select → Inquire → Exploit → Check")
         return autopt_graph
 
     @retry(max_retries=3, retry_delay=2)
     def state_machine_run(self, graph: CompiledGraph, name: str, ip_addr: str):
+        self._emit_log(f"[引擎] 开始渗透测试: {name} -> {ip_addr}")
         with jsonlines.open(self.config['test']['test_path'], 'r') as reader:
             for vul in reader:
                 if vul['name'] == name:
@@ -160,6 +183,7 @@ class AutoPT:
         problem = self.states.problem
         # 注入靶机 IP，供 ServicePort 动态发现兜底使用
         set_target_ip(ip_addr)
+        self._emit_log(f"[引擎] 目标注入完成，启动状态机运行 (最大递归深度: {self.config['psm']['sys_iterations']})")
         asyncio.run(graph.ainvoke(
             {"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0},
             config={"recursion_limit": self.config['psm']['sys_iterations']}

@@ -43,3 +43,15 @@ test:
   # models: ['gpt35turbo', 'gpt4omini', 'gpt4o']
   models: ['gemini-3.1-pro-preview-thinking-high']
   
+
+# 本地执行环境
+local:
+  command_timeout: 120     # 命令超时时间（秒）
+  xray_path: ""            # xray路径（空则自动检测）
+  target_host: "127.0.0.1" # 靶机IP
+
+# Web界面配置
+web:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false

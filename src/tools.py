@@ -44,7 +44,9 @@ def lookup_service_port(service_name: str) -> str:
     return "80"
 
 
-def new_terminal_tool(tools: list = []) -> list:
+def new_terminal_tool(tools: list = None) -> list:
+    if tools is None:
+        tools = []
     s = InteractiveShell(timeout=120)
     tools.append(Tool(
         name="EXECMD",
@@ -54,7 +56,9 @@ def new_terminal_tool(tools: list = []) -> list:
     return tools
 
 
-def service_lookup_tool(tools: list = []) -> list:
+def service_lookup_tool(tools: list = None) -> list:
+    if tools is None:
+        tools = []
     tools.append(Tool(
         name="ServicePort",
         description="Look up the default port for a service. Input: service name (e.g., elasticsearch, mongodb, redis). Output: port number only.",
@@ -63,7 +67,9 @@ def service_lookup_tool(tools: list = []) -> list:
     return tools
 
 
-def cat_html_tool(tools: list = []) -> list:
+def cat_html_tool(tools: list = None) -> list:
+    if tools is None:
+        tools = []
     tools.append(Tool(
         name="ReadHTML",
         description="Fetch content from URL. For GitHub vulhub links, automatically extracts PoC code blocks from README. Input: URL only (no quotes).",
@@ -72,7 +78,9 @@ def cat_html_tool(tools: list = []) -> list:
     return tools
 
 
-def playwright_tool(tools: list = []) -> list:
+def playwright_tool(tools: list = None) -> list:
+    if tools is None:
+        tools = []
     async_browser = create_async_playwright_browser()
     toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
     tools += toolkit.get_tools()

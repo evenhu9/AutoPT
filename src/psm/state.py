@@ -67,6 +67,27 @@ When you fail after multiple attempts, respond with:
             except Exception:
                 pass
 
+    def _format_parsing_error(self, error) -> str:
+        """
+        AgentExecutor 解析失败时的智能错误处理函数。
+        返回一条指导性消息，帮助 LLM 在下一轮生成正确格式。
+        """
+        error_msg = str(error)
+        self._emit_log(f"[Parser] ⚠️ 输出格式错误，引导模型重新生成...")
+        
+        return (
+            "FORMAT ERROR: Your previous response could not be parsed.\n"
+            "You MUST respond in EXACTLY this format (no extra text before Thought):\n\n"
+            "Thought: [one sentence about what to do next]\n"
+            "Action: [tool name - one of: EXECMD, ServicePort, ReadHTML]\n"
+            "Action Input: [the input for the tool]\n\n"
+            "OR if you have the final answer:\n\n"
+            "Thought: I now know the final answer\n"
+            "Final Answer: [your answer]\n\n"
+            "IMPORTANT: Do NOT write long analysis. Keep Thought to ONE sentence. "
+            "Action MUST be on the very next line after Thought."
+        )
+
     # ------------------------------------------------------------------
     # 工具方法（与原版相同，保持不变）
     # ------------------------------------------------------------------
@@ -266,7 +287,7 @@ When you fail after multiple attempts, respond with:
 
         _executor = AgentExecutor(
             agent=agent, tools=tools, verbose=True,
-            handle_parsing_errors=True,
+            handle_parsing_errors=self._format_parsing_error,
             max_iterations=max_iterations,
             return_intermediate_steps=True
         )

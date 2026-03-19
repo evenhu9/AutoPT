@@ -29,6 +29,7 @@ function switchPage(name) {
     // 页面切换时加载数据
     if (name === 'dashboard') loadDashboard();
     if (name === 'vulns') loadVulns();
+    if (name === 'attack') { /* 模型配置统一在系统设置管理 */ }
     if (name === 'docker') { refreshDocker(); loadDockerEnvs(); }
     if (name === 'results') { loadResults(); loadTaskHistory(); }
     if (name === 'settings') { loadConfig(); loadSystemInfo(); }
@@ -45,59 +46,86 @@ document.getElementById('menuToggle').addEventListener('click', () => {
 });
 
 // ==================== API 请求封装 ====================
-async function apiGet(url) {
-    try {
-        const res = await fetch(API + url);
-        return await res.json();
-    } catch (e) {
-        console.error('API请求失败:', url, e);
-        return { status: 'error', message: e.message };
+async function apiGet(url, retries = 2) {
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const res = await fetch(API + url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                const text = await res.text().catch(() => '');
+                console.warn(`[API] ${url} 返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
+                try { return JSON.parse(text); } catch (_) {}
+                return { status: 'error', message: `服务器返回 ${res.status}` };
+            }
+            return await res.json();
+        } catch (e) {
+            const errMsg = e.name === 'AbortError' ? '请求超时' : (e.message || '网络连接失败');
+            console.warn(`[API] ${url} 请求失败 (${i + 1}/${retries + 1}): ${errMsg}`);
+            if (i < retries) {
+                await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                continue;
+            }
+            return { status: 'error', message: errMsg };
+        }
     }
 }
 
 async function apiPost(url, data) {
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         const res = await fetch(API + url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            console.warn(`[API] POST ${url} 返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
+            try { return JSON.parse(text); } catch (_) {}
+            return { status: 'error', message: `服务器返回 ${res.status}` };
+        }
         return await res.json();
     } catch (e) {
-        console.error('API请求失败:', url, e);
-        return { status: 'error', message: e.message };
+        const errMsg = e.name === 'AbortError' ? '请求超时' : (e.message || '网络连接失败');
+        console.warn(`[API] POST ${url} 请求失败: ${errMsg}`);
+        return { status: 'error', message: errMsg };
     }
 }
 
 // ==================== 控制台 ====================
 async function loadDashboard() {
-    const [statsRes, vulnRes] = await Promise.all([
-        apiGet('/api/results/stats'),
-        apiGet('/api/vulns')
-    ]);
+    try {
+        const [statsRes, vulnRes] = await Promise.all([
+            apiGet('/api/results/stats'),
+            apiGet('/api/vulns')
+        ]);
 
-    if (statsRes.status === 'ok') {
-        const d = statsRes.data;
-        document.getElementById('statVulns').textContent = d.total_vulns;
-        document.getElementById('statSuccess').textContent = d.success_count;
-        document.getElementById('statFailed').textContent = d.failed_count;
-        document.getElementById('statRate').textContent = d.success_rate + '%';
-        document.getElementById('statAvgTime').textContent = d.avg_runtime + 's';
-    }
+        if (statsRes.status === 'ok' && statsRes.data) {
+            const d = statsRes.data;
+            document.getElementById('statVulns').textContent = d.total_vulns ?? '-';
+            document.getElementById('statSuccess').textContent = d.success_count ?? '-';
+            document.getElementById('statFailed').textContent = d.failed_count ?? '-';
+            document.getElementById('statRate').textContent = (d.success_rate ?? 0) + '%';
+            document.getElementById('statAvgTime').textContent = (d.avg_runtime ?? 0) + 's';
+        }
 
-    if (vulnRes.status === 'ok') {
-        renderOwaspGrid(vulnRes.data);
-    }
+        if (vulnRes.status === 'ok' && vulnRes.data) {
+            renderOwaspGrid(vulnRes.data);
+        }
 
-    // 加载当前模型配置
-    const cfgRes = await apiGet('/api/config');
-    if (cfgRes.status === 'ok' && cfgRes.data.test) {
-        const models = cfgRes.data.test.models || [];
-        const modelNames = {
-            gpt35turbo: 'GPT-3.5', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o',
-            claude35: 'Claude 3.5', llama31: 'Llama 3.1'
-        };
-        document.getElementById('statModel').textContent = modelNames[models[0]] || models[0] || 'N/A';
+        // 加载当前模型配置
+        const cfgRes = await apiGet('/api/config');
+        if (cfgRes.status === 'ok' && cfgRes.data && cfgRes.data.test) {
+            const models = cfgRes.data.test.models || [];
+            document.getElementById('statModel').textContent = MODEL_DISPLAY_NAMES[models[0]] || models[0] || 'N/A';
+        }
+    } catch (e) {
+        console.warn('[Dashboard] 加载数据异常:', e.message || e);
     }
 }
 
@@ -234,14 +262,22 @@ function closeModal() {
 async function startAttack() {
     const name = document.getElementById('attackVuln').value;
     const ip = document.getElementById('attackIP').value;
-    const modelSelect = document.getElementById('attackModel').value;
-    const model = modelSelect === '__custom__' 
-        ? document.getElementById('attackModelCustom').value.trim() 
-        : modelSelect;
 
     if (!name) { showToast('请选择目标漏洞', 'warning', '参数缺失'); return; }
     if (!ip) { showToast('请输入目标IP地址', 'warning', '参数缺失'); return; }
-    if (!model) { showToast('请输入自定义模型名称', 'warning', '参数缺失'); return; }
+
+    // 从系统配置中读取当前模型
+    const cfgRes = await apiGet('/api/config');
+    if (cfgRes.status !== 'ok') {
+        showToast('无法读取系统配置，请先在系统设置中配置AI模型', 'error', '配置读取失败');
+        return;
+    }
+    const model = (cfgRes.data.test?.models || [])[0] || '';
+    if (!model) {
+        showToast('未配置AI模型，请先在系统设置中选择模型', 'warning', '模型未配置');
+        switchPage('settings');
+        return;
+    }
 
     const btn = document.getElementById('startAttackBtn');
     btn.disabled = true;
@@ -373,7 +409,8 @@ async function refreshDocker() {
         }
     } else {
         bar.className = 'docker-status-bar error';
-        bar.innerHTML = `<i class="ri-error-warning-fill"></i> ${res.message || 'Docker不可用'}`;
+        const msg = (res.data && res.data.message) || res.message || 'Docker不可用';
+        bar.innerHTML = `<i class="ri-error-warning-fill"></i> ${msg}`;
         tbody.innerHTML = '<tr><td colspan="5" class="table-empty">Docker未运行</td></tr>';
     }
 }
@@ -541,7 +578,7 @@ async function loadConfig() {
     const currentModel = (c.test?.models || [])[0] || 'gpt4omini';
     const cfgModelSel = document.getElementById('cfgModel');
     const cfgModelCustom = document.getElementById('cfgModelCustom');
-    const presetModels = ['gpt35turbo', 'gpt4omini', 'gpt4o', 'claude35', 'llama31'];
+    const presetModels = ['gpt35turbo', 'gpt4omini', 'gpt4o', 'gpt4turbo', 'qwen-plus', 'qwen-max', 'glm-4', 'deepseek-chat', 'deepseek-reasoner', 'ernie-4', 'llama31'];
     if (presetModels.includes(currentModel)) {
         cfgModelSel.value = currentModel;
         cfgModelCustom.style.display = 'none';
@@ -558,11 +595,23 @@ async function loadConfig() {
     document.getElementById('cfgTimeout').value = c.local?.command_timeout || 120;
 }
 
-// ==================== 自定义模型选择交互 ====================
+// ==================== 渗透测试页面模型显示 ====================
+const MODEL_DISPLAY_NAMES = {
+    gpt35turbo: 'GPT-3.5 Turbo',
+    gpt4omini: 'GPT-4o-mini',
+    gpt4o: 'GPT-4o',
+    gpt4turbo: 'GPT-4-turbo',
+    'qwen-plus': '通义千问 Qwen-Plus',
+    'qwen-max': '通义千问 Qwen-Max',
+    'glm-4': '智谱 GLM-4',
+    'deepseek-chat': 'DeepSeek Chat',
+    'deepseek-reasoner': 'DeepSeek Reasoner',
+    'ernie-4': '文心一言 ERNIE-4',
+    llama31: 'Llama 3.1 70B'
+};
+
 function onModelSelectChange() {
-    const sel = document.getElementById('attackModel');
-    const custom = document.getElementById('attackModelCustom');
-    custom.style.display = sel.value === '__custom__' ? 'block' : 'none';
+    // 已废弃 - 渗透测试页面不再有模型选择器
 }
 
 function onCfgModelChange() {
@@ -582,38 +631,33 @@ async function saveConfig() {
         return;
     }
 
+    // 先读取当前配置，在其基础上合并修改，避免覆盖未展示在页面上的字段
+    const currentRes = await apiGet('/api/config');
+    const current = currentRes.status === 'ok' ? currentRes.data : {};
+
     const config = {
         ai: {
+            ...(current.ai || {}),
             openai_base: document.getElementById('cfgApiBase').value,
             openai_key: document.getElementById('cfgApiKey').value,
-            nvidia_key: '',
             temperature: parseFloat(document.getElementById('cfgTemp').value)
         },
         test: {
-            test_path: '../bench/data.jsonl',
-            output_path: 'result',
-            save_history: true,
-            save_command: true,
+            ...(current.test || {}),
             models: [modelName]
         },
         psm: {
+            ...(current.psm || {}),
             sys_iterations: parseInt(document.getElementById('cfgSysIter').value),
             exp_iterations: parseInt(document.getElementById('cfgExpIter').value),
             query_iterations: parseInt(document.getElementById('cfgQueryIter').value),
-            scan_iterations: parseInt(document.getElementById('cfgScanIter').value),
-            debug: false,
-            draw_graph: false
+            scan_iterations: parseInt(document.getElementById('cfgScanIter').value)
         },
         local: {
-            command_timeout: parseInt(document.getElementById('cfgTimeout').value),
-            xray_path: '',
-            target_host: '127.0.0.1'
+            ...(current.local || {}),
+            command_timeout: parseInt(document.getElementById('cfgTimeout').value)
         },
-        web: {
-            host: '0.0.0.0',
-            port: 5000,
-            debug: false
-        }
+        web: current.web || { host: '0.0.0.0', port: 5000, debug: false }
     };
 
     const res = await apiPost('/api/config', config);

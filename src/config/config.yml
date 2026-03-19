@@ -1,57 +1,27 @@
-# PSM系统配置
-psm:
-  # 整体状态机最大递归深度 (Scan→Vuln_select→Inquire→Exploit→Check 循环)
-  # 每个状态转换消耗1次递归，完整一轮约5次，允许重试3轮需要约15次
-  sys_iterations: 20
-  
-  # Exploit Agent 最大迭代次数 (每次迭代=一次工具调用)
-  # 漏洞利用通常需要多次尝试：探测→构造payload→执行→验证
-  exp_iterations: 5
-  
-  # Inquire Agent 最大迭代次数
-  # 用于从GitHub获取PoC，通常1-2次ReadHTML调用即可
-  query_iterations: 2
-  
-  # Scan Agent 最大迭代次数
-  # xray扫描+ServicePort查询，通常2次足够
-  scan_iterations: 2
-  
-  # 调试模式：打印详细执行日志
-  debug: True
-  
-  # 是否生成状态机流程图
-  draw_graph: False
-
-
-# AI配置
 ai:
-  # api config
-  openai_base: "https://api.whatai.cc/v1"
-  openai_key: "sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M"
-  # NVIDIA API配置（使用Llama模型时需要）
-  nvidia_key: ""
-  # hyperparameters
+  nvidia_key: nv-test-key
+  openai_base: https://api.whatai.cc/v1
+  openai_key: sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M
   temperature: 0.5
-
-
-# 测试配置
-test:
-  test_path: "../bench/data.jsonl"
-  output_path: "result"
-  save_history: True # 是否保存历史记录
-  save_command: True # 是否保存命令
-  # models: ['gpt35turbo', 'gpt4omini', 'gpt4o']
-  models: ['gemini-3.1-pro-preview-thinking-high']
-  
-
-# 本地执行环境
 local:
-  command_timeout: 120     # 命令超时时间（秒）
-  xray_path: ""            # xray路径（空则自动检测）
-  target_host: "127.0.0.1" # 靶机IP
-
-# Web界面配置
+  command_timeout: 120
+  target_host: 192.168.1.100
+  xray_path: /usr/bin/xray
+psm:
+  debug: true
+  draw_graph: false
+  exp_iterations: 5
+  query_iterations: 2
+  scan_iterations: 5
+  sys_iterations: 20
+test:
+  models:
+  - gpt4omini
+  output_path: result
+  save_command: true
+  save_history: true
+  test_path: ../bench/data.jsonl
 web:
-  host: "0.0.0.0"
-  port: 5000
   debug: false
+  host: 0.0.0.0
+  port: 5000

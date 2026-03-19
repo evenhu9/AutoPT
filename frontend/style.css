@@ -921,6 +921,31 @@ select.form-control { cursor: pointer; }
     gap: 20px;
 }
 
+.settings-save-bar {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -24px -24px;
+    padding: 16px 24px;
+    background: linear-gradient(to top, var(--bg-primary) 60%, transparent);
+    display: flex;
+    justify-content: flex-end;
+    z-index: 10;
+}
+
+.btn-save-config {
+    padding: 12px 32px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+    letter-spacing: 0.3px;
+}
+
+.btn-save-config:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(59, 130, 246, 0.5);
+}
+
 .sys-info-item {
     display: flex;
     justify-content: space-between;

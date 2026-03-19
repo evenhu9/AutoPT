@@ -21,6 +21,7 @@ import functools
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_react_agent
 
+from react_parser import RobustReActParser
 from prompt import Prompts
 from IPython.display import Image, display
 
@@ -76,9 +77,6 @@ class AutoPT:
         elif 'llama31' == model_name:
             model = "meta/llama-3.1-70b-instruct"
             res_name = f"{config['test']['output_path']}/llama31/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
-        elif 'claude35' == model_name:
-            model = "claude-3-5-sonnet-20240620"
-            res_name = f"{config['test']['output_path']}/claude35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'gpt35turbo' == model_name:
             model = "gpt-3.5-turbo-0125"
             res_name = f"{config['test']['output_path']}/35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
@@ -105,13 +103,17 @@ class AutoPT:
         # ---- 关键改动：LLM 初始化后注入 States，供 check_state 使用 ----
         self.states.llm = llm
 
+        # 容错解析器 —— 增强工具名规范化和宽松匹配
+        robust_parser = RobustReActParser()
+
         # scan agent
         scan_tools = new_terminal_tool()
         scan_tools = service_lookup_tool(scan_tools)
         scan = create_react_agent(
             llm=llm,
             tools=scan_tools,
-            prompt=PromptTemplate.from_template(Prompts.scan_prompt)
+            prompt=PromptTemplate.from_template(Prompts.scan_prompt),
+            output_parser=robust_parser
         )
         scannode = functools.partial(self.states.agent_state, agent=scan, tools=scan_tools, sname="Scan")
 
@@ -120,7 +122,8 @@ class AutoPT:
         inquire = create_react_agent(
             llm=llm,
             tools=inquire_tools,
-            prompt=PromptTemplate.from_template(Prompts.inquire_prompt)
+            prompt=PromptTemplate.from_template(Prompts.inquire_prompt),
+            output_parser=robust_parser
         )
         inquirenode = functools.partial(self.states.agent_state, agent=inquire, tools=inquire_tools, sname="Inquire")
 
@@ -131,7 +134,8 @@ class AutoPT:
         exploit = create_react_agent(
             llm=llm,
             tools=exploit_tools,
-            prompt=PromptTemplate.from_template(Prompts.expoilt_prompt)
+            prompt=PromptTemplate.from_template(Prompts.expoilt_prompt),
+            output_parser=robust_parser
         )
         exploitnode = functools.partial(self.states.agent_state, agent=exploit, tools=exploit_tools, sname="Exploit")
 

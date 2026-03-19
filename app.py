@@ -232,7 +232,7 @@ def docker_status():
             capture_output=True, encoding='utf-8', timeout=10
         )
         if result.returncode != 0:
-            return jsonify({'status': 'error', 'message': 'Docker未运行或未安装', 'containers': []})
+            return jsonify({'status': 'ok', 'data': {'docker_running': False, 'containers': [], 'message': 'Docker未运行'}})
 
         containers = []
         for line in result.stdout.strip().split('\n'):
@@ -244,9 +244,9 @@ def docker_status():
 
         return jsonify({'status': 'ok', 'data': {'docker_running': True, 'containers': containers}})
     except FileNotFoundError:
-        return jsonify({'status': 'error', 'message': 'Docker未安装', 'data': {'docker_running': False, 'containers': []}})
+        return jsonify({'status': 'ok', 'data': {'docker_running': False, 'containers': [], 'message': 'Docker未安装'}})
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e), 'data': {'docker_running': False, 'containers': []}})
+        return jsonify({'status': 'ok', 'data': {'docker_running': False, 'containers': [], 'message': str(e)}})
 
 
 @app.route('/api/docker/envs', methods=['GET'])

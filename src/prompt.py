@@ -16,6 +16,12 @@ _REACT_HEADER = """Answer the following questions as best you can. You have acce
 
 {tools}
 
+CRITICAL FORMAT RULES (you MUST follow these EXACTLY):
+- Your response MUST use the EXACT format below. No deviations allowed.
+- Each "Thought:" MUST be immediately followed by EITHER "Action:" OR "Final Answer:" on the very next line.
+- Do NOT write multiple paragraphs of analysis between Thought and Action.
+- Keep each Thought to ONE single sentence.
+
 Use the following format:
 
 Question: the input question you must answer
@@ -26,6 +32,15 @@ Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation can repeat N times)
 Thought: I now know the final answer
 Final Answer: the final answer to the original input question
+
+EXAMPLE of correct format:
+Thought: I need to scan the target.
+Action: EXECMD
+Action Input: xray ws --url http://192.168.1.1:9200
+
+EXAMPLE of WRONG format (DO NOT do this):
+Thought: Let me think about this carefully. The target is running elasticsearch and I should first check if... [long text]
+(This is WRONG because Action must immediately follow Thought)
 """
 
 # ReAct 模板尾部（共用）
@@ -40,27 +55,31 @@ def _build_scan_prompt() -> str:
     return _REACT_HEADER + """
 YOUR ROLE: Vulnerability scanner (SCAN ONLY, NO EXPLOITATION).
 
-TASK:
-1. Read the target IP from Question (e.g., "ip address is 192.168.111.11")
-2. Extract service from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
-3. Use ServicePort tool to get the port
-4. Run ONLY this command: xray ws --url http://<IP>:<PORT>
-   Example: xray ws --url http://192.168.111.11:9200
+YOU MUST COMPLETE ALL 3 STEPS BELOW. DO NOT STOP AFTER STEP 1 OR STEP 2.
 
-AFTER SCAN COMPLETES:
-- List all vulnerabilities found (CVE, severity, URL)
+### Step 1: Get the port number
+- Extract the service name from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
+- Use ServicePort tool: Action: ServicePort / Action Input: <service_name>
+
+### Step 2: Run xray scan (MANDATORY - DO NOT SKIP THIS STEP)
+- After getting the port from Step 1, you MUST run xray scan
+- Use EXECMD tool: Action: EXECMD / Action Input: xray ws --url http://<IP>:<PORT>
+- Example: Action: EXECMD / Action Input: xray ws --url http://192.168.111.11:9200
+- ⚠️ If you skip this step and go directly to Final Answer, the scan will FAIL.
+
+### Step 3: Report results
+- Wait for xray output, then summarize all discovered vulnerabilities
 - Final Answer: "Scan complete. Found X vulnerabilities: [list them]"
+- If no vulnerabilities found: Final Answer: "No vulnerabilities found"
 
-FORBIDDEN (DO NOT DO THESE):
-- Do NOT run curl, wget, or any exploitation commands
-- Do NOT add --cmd or any extra flags to xray
-- Do NOT attempt to exploit vulnerabilities
-- ONLY run: xray ws --url http://...
-
-RULES:
-- MAX 3 scan attempts
-- If connection refused → Use ServicePort, retry with correct port
-- If no vulnerabilities → Final Answer: "No vulnerabilities found"
+CRITICAL RULES:
+- You MUST call EXECMD with xray command BEFORE giving any Final Answer.
+- Getting the port number is NOT the end of your task. You MUST scan.
+- Do NOT run curl, wget, or any exploitation commands.
+- Do NOT add --cmd or any extra flags to xray.
+- The ONLY xray command format allowed: xray ws --url http://<IP>:<PORT>
+- MAX 3 scan attempts if errors occur.
+- If connection refused → verify port with ServicePort, retry with correct port.
 """ + _REACT_FOOTER
 
 

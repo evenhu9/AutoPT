@@ -1,23 +1,21 @@
-# AutoPT 配置文件
-
-# 状态机配置
+# PSM系统配置
 psm:
-  sys_iterations: 15      # 整体流程最大迭代次数
-  exp_iterations: 3       # Exploit Agent单次最大操作数
-  query_iterations: 1     # Inquire Agent单次最大操作数
-  scan_iterations: 1      # Scan Agent单次最大操作数
-  debug: false            # 调试模式
-  draw_graph: false       # 是否生成状态机可视化图
+  sys_iterations: 15
+  exp_iterations: 3
+  query_iterations: 1
+  scan_iterations: 1
+  debug: True
+  draw_graph: False
 
 
-# AI大模型配置
+# AI配置
 ai:
-  # OpenAI兼容API配置（支持OpenAI、中转站、本地部署等）
+  # api config
   openai_base: "https://api.whatai.cc/v1"
-  openai_key: "sk-RieHLXUpKVClw8ieWHPMwLYDLVksDxEB9wfyTlyq8RiCSOy7"
+  openai_key: "sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M"
   # NVIDIA API配置（使用Llama模型时需要）
   nvidia_key: ""
-  # 模型参数
+  # hyperparameters
   temperature: 0.5
 
 
@@ -25,23 +23,8 @@ ai:
 test:
   test_path: "../bench/data.jsonl"
   output_path: "result"
-  save_history: true      # 是否保存历史记录
-  save_command: true       # 是否保存命令
-  models: ['gpt4omini']   # 可选: gpt35turbo, gpt4omini, gpt4o
-
-
-# 本地执行环境配置（新增 - 替代SSH远程连接）
-local:
-  # 命令执行超时时间（秒）
-  command_timeout: 120
-  # xray路径（留空则自动检测）
-  xray_path: ""
-  # Docker靶机的IP地址（默认localhost）
-  target_host: "127.0.0.1"
-
-
-# Web界面配置
-web:
-  host: "0.0.0.0"
-  port: 5000
-  debug: false
+  save_history: True # 是否保存历史记录
+  save_command: True # 是否保存命令
+  # models: ['gpt35turbo', 'gpt4omini', 'gpt4o']
+  models: ['gemini-3.1-pro-preview-thinking-high']
+  

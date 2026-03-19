@@ -16,9 +16,9 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 # 确保能导入 AutoPT 模块
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'AutoPT'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from AutoPT.utils import load_config
+from utils import load_config
 
 app = Flask(__name__, static_folder='frontend', static_url_path='')
 CORS(app)
@@ -57,9 +57,9 @@ task_manager = {
     'logs': {},
 }
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'AutoPT', 'config', 'config.yml')
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'src', 'config', 'config.yml')
 BENCH_DATA_PATH = os.path.join(os.path.dirname(__file__), 'bench', 'data.jsonl')
-RESULT_DIR = os.path.join(os.path.dirname(__file__), 'AutoPT', 'result')
+RESULT_DIR = os.path.join(os.path.dirname(__file__), 'src', 'result')
 
 
 def load_bench_data():
@@ -399,8 +399,8 @@ def _run_engine_task(task):
         config['test']['models'] = [task['model']]
 
         # 导入原始引擎模块
-        from AutoPT.psm import States
-        from AutoPT.autopt import AutoPT
+        from psm import States
+        from autopt import AutoPT
 
         # 初始化状态机和引擎（与原始 main.py 逻辑一致）
         states = States(task['name'], config)
@@ -503,7 +503,7 @@ def system_info():
     xray_available = False
     xray_info = ''
     try:
-        from AutoPT.terminal import InteractiveShell
+        from terminal import InteractiveShell
         shell = InteractiveShell(timeout=10)
         xray_info = 'xray路径: ' + shell.xray_path
         xray_available = os.path.exists(shell.xray_path)

@@ -1,0 +1,148 @@
+# 服务知识库 - 端口映射、漏洞模式、利用方法
+# 用于 scan/inquire/exploit 阶段的动态加载
+
+services:
+  elasticsearch:
+    port: 9200
+    aliases: ["elastic", "es"]
+    cve_patterns: ["script injection", "dynamic scripting", "groovy", "mvel"]
+    exploit_hints: "Script injection via _search API, check /_search endpoint"
+    probe_cmd: "curl http://{target}:9200"
+
+  mongodb:
+    port: 27017
+    aliases: ["mongo"]
+    cve_patterns: ["auth bypass", "injection", "ssjs"]
+    exploit_hints: "Check for auth bypass, server-side JavaScript injection"
+    probe_cmd: "curl http://{target}:27017"
+
+  redis:
+    port: 6379
+    aliases: []
+    cve_patterns: ["unauthorized access", "rce", "lua injection"]
+    exploit_hints: "Check for no-auth access, CONFIG/SLAVEOF commands"
+    probe_cmd: "redis-cli -h {target} ping"
+
+  mysql:
+    port: 3306
+    aliases: ["mariadb"]
+    cve_patterns: ["auth bypass", "sql injection", "privilege escalation"]
+    exploit_hints: "Check for weak credentials, SQL injection points"
+    probe_cmd: "mysql -h {target} -u root -e 'SELECT 1'"
+
+  postgresql:
+    port: 5432
+    aliases: ["postgres", "pg"]
+    cve_patterns: ["auth bypass", "sql injection"]
+    exploit_hints: "Check for trust authentication, SQL injection"
+    probe_cmd: "psql -h {target} -U postgres -c 'SELECT 1'"
+
+  tomcat:
+    port: 8080
+    aliases: ["apache tomcat"]
+    cve_patterns: ["manager", "ajp", "deserialization", "rce"]
+    exploit_hints: "Check /manager/html with default creds, AJP ghostcat"
+    probe_cmd: "curl http://{target}:8080"
+
+  weblogic:
+    port: 7001
+    aliases: ["oracle weblogic"]
+    cve_patterns: ["deserialization", "t3", "iiop", "rce"]
+    exploit_hints: "Check T3/IIOP protocols, /console path"
+    probe_cmd: "curl http://{target}:7001/console"
+
+  jenkins:
+    port: 8080
+    aliases: []
+    cve_patterns: ["script console", "groovy", "rce", "deserialization"]
+    exploit_hints: "Check /script for Groovy console, /jnlpJars/"
+    probe_cmd: "curl http://{target}:8080"
+
+  docker:
+    port: 2375
+    aliases: ["docker api", "docker daemon"]
+    cve_patterns: ["unauthorized api", "container escape"]
+    exploit_hints: "Check for unauthenticated API, mount host filesystem"
+    probe_cmd: "curl http://{target}:2375/version"
+
+  nginx:
+    port: 80
+    aliases: []
+    cve_patterns: ["path traversal", "misconfiguration"]
+    exploit_hints: "Often a reverse proxy - check service-specific ports"
+    probe_cmd: "curl http://{target}"
+
+  apache:
+    port: 80
+    aliases: ["httpd", "apache httpd"]
+    cve_patterns: ["path traversal", "mod_cgi", "ssrf"]
+    exploit_hints: "Check for mod_cgi, path traversal vulnerabilities"
+    probe_cmd: "curl http://{target}"
+
+  ssh:
+    port: 22
+    aliases: ["openssh"]
+    cve_patterns: ["auth bypass", "user enumeration"]
+    exploit_hints: "Check for weak credentials, version-specific CVEs"
+    probe_cmd: "ssh -o BatchMode=yes {target} 2>&1 | head -1"
+
+  ftp:
+    port: 21
+    aliases: ["vsftpd", "proftpd"]
+    cve_patterns: ["anonymous access", "backdoor"]
+    exploit_hints: "Check for anonymous login, version-specific backdoors"
+    probe_cmd: "curl ftp://{target}"
+
+  smb:
+    port: 445
+    aliases: ["samba", "cifs"]
+    cve_patterns: ["eternalblue", "ms17-010", "auth bypass"]
+    exploit_hints: "Check for EternalBlue, anonymous shares"
+    probe_cmd: "smbclient -L {target} -N"
+
+  mssql:
+    port: 1433
+    aliases: ["sql server", "sqlserver"]
+    cve_patterns: ["auth bypass", "xp_cmdshell"]
+    exploit_hints: "Check for weak sa password, xp_cmdshell enabled"
+    probe_cmd: "sqlcmd -S {target} -Q 'SELECT 1'"
+
+  oracle:
+    port: 1521
+    aliases: ["oracle db", "tns"]
+    cve_patterns: ["tns poison", "auth bypass"]
+    exploit_hints: "Check for TNS listener vulnerabilities"
+    probe_cmd: "tnsping {target}"
+
+  memcached:
+    port: 11211
+    aliases: []
+    cve_patterns: ["unauthorized access", "amplification"]
+    exploit_hints: "Check for no-auth access, stats command"
+    probe_cmd: "echo 'stats' | nc {target} 11211"
+
+  rabbitmq:
+    port: 5672
+    aliases: ["amqp"]
+    cve_patterns: ["default credentials", "management api"]
+    exploit_hints: "Check management UI on 15672, default guest:guest"
+    probe_cmd: "curl http://{target}:15672"
+
+  kafka:
+    port: 9092
+    aliases: []
+    cve_patterns: ["unauthorized access"]
+    exploit_hints: "Check for unauthenticated access to broker"
+    probe_cmd: "echo 'dump' | nc {target} 9092"
+
+  zookeeper:
+    port: 2181
+    aliases: ["zk"]
+    cve_patterns: ["unauthorized access", "four letter words"]
+    exploit_hints: "Check for unauthenticated access, ruok/stat commands"
+    probe_cmd: "echo 'stat' | nc {target} 2181"
+
+# 默认端口（未知服务时使用）
+default:
+  port: 80
+  probe_cmd: "curl http://{target}"

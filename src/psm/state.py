@@ -272,6 +272,48 @@ When you fail after multiple attempts, respond with:
     def _build_inquire_input(self, state: AgentState) -> str:
         return "\n".join([self.problem, self._build_structured_context(state)])
 
+    def _try_extract_exploit_from_output(self, text: str) -> str:
+        """
+        从 Inquire Agent 的原始输出中尝试提取可执行的 exploit 命令。
+        当 Agent 因格式错误耗尽迭代但输出中其实包含有用信息时使用。
+        """
+        if not text or not text.strip():
+            return ""
+
+        # 1. 尝试提取 curl 命令（最常见的 exploit 格式）
+        curl_patterns = [
+            # 完整 curl 命令（含 -X, -H, -d 等参数）
+            r'(curl\s+(?:-[sSkXHd]\s+\S+\s+)*(?:(?:\'|")?\s*https?://\S+)(?:\s+(?:-[sSkXHd]\s+(?:\'[^\']*\'|"[^"]*"|\S+)\s*))*)',
+            # 简单 curl 命令
+            r'(curl\s+\S*https?://\S+[^\n]*)',
+        ]
+        for pattern in curl_patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                cmd = match.group(1).strip()
+                if len(cmd) > 20:
+                    return cmd
+
+        # 2. 从 markdown 代码块中提取
+        code_matches = re.findall(
+            r'```(?:bash|shell|sh|zsh|cmd)?\s*\n(.+?)\n```',
+            text, re.DOTALL
+        )
+        for block in reversed(code_matches):  # 倒序查找（最后的代码块通常是最终命令）
+            block = block.strip()
+            if any(block.startswith(prefix) for prefix in ['curl', 'wget', 'python', 'ruby']):
+                return block
+
+        # 3. 提取 POST/GET HTTP 请求模板
+        http_match = re.search(
+            r'((?:POST|GET|PUT)\s+\S+\s+HTTP/\d\.\d.+?)(?:\n\n[A-Z]|\Z)',
+            text, re.DOTALL
+        )
+        if http_match:
+            return http_match.group(1).strip()
+
+        return ""
+
     # ------------------------------------------------------------------
     # 核心状态节点
     # ------------------------------------------------------------------
@@ -327,8 +369,27 @@ When you fail after multiple attempts, respond with:
                 if info_summary and f"Information: {info_summary}" not in self.problem:
                     self.problem += f"Information: {info_summary}\n"
         else:
-            message = AIMessage(result['output'])
-            self.history = self.history + [result['output']]
+            output_text = result['output']
+            # 当 Inquire Agent 因格式错误耗尽迭代次数，intermediate_steps 为空
+            # 但 output 中可能仍包含有用的 PoC 命令信息
+            if sname == 'Inquire' and len(state["vulns"]) > 0:
+                # 尝试从输出中提取可执行的 exploit 命令
+                extracted_cmd = self._try_extract_exploit_from_output(output_text)
+                if extracted_cmd:
+                    self._emit_log(f"[Inquire] 从 Agent 输出中提取到 exploit 命令: {extracted_cmd[:120]}...")
+                    safe_info = self._sanitize_information_text(extracted_cmd)
+                    state["vulns"][0]['information'] = safe_info
+                    info_summary = safe_info[:240] if len(safe_info) > 240 else safe_info
+                    if info_summary and f"Information: {info_summary}" not in self.problem:
+                        self.problem += f"Information: {info_summary}\n"
+                else:
+                    self._emit_log(f"[Inquire] ⚠️ Agent 未能产出有效 exploit 命令，将原始输出传递给 Exploit Agent")
+                    # 即使没有提取到命令，也把输出存储到 raw_outputs 供后续参考
+                    if output_text.strip():
+                        self.raw_outputs["Inquire"] = output_text
+
+            message = AIMessage(output_text)
+            self.history = self.history + [output_text]
 
         return {
             "message": [message],

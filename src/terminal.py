@@ -78,8 +78,9 @@ class InteractiveShell:
         if command.startswith("`") and command.endswith("`"):
             command = command[1:-1]
         if command.count('\n') > 0:
-            command = command.splitlines() # pyright: ignore[reportAssignmentType]
-            command = ''.join(command[1:-1])
+            # 多行命令：用 && 连接所有非空行，保留完整命令结构
+            lines = [line.strip() for line in command.splitlines() if line.strip()]
+            command = ' && '.join(lines)
         if 'nano ' in command:
             return "nano is not supported in this environment"
         if 'searchsploit ' in command:

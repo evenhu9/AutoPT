@@ -11,7 +11,7 @@ psm:
   debug: true
   draw_graph: false
   exp_iterations: 5
-  query_iterations: 2
+  query_iterations: 3
   scan_iterations: 5
   sys_iterations: 20
 test:

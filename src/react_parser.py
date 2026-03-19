@@ -125,6 +125,12 @@ class RobustReActParser(ReActSingleInputOutputParser):
                     answer = answer[:idx].strip()
             return answer if answer else None
 
+        # 模式2: 没有 "Final Answer:" 标签，但文本中包含可执行的 exploit 命令
+        # 这是 Inquire Agent 常见的输出模式：分析完后直接给出命令但没加 Final Answer 标签
+        cmd = self._extract_standalone_exploit_command(text)
+        if cmd:
+            return cmd
+
         return None
 
     # 已知工具名映射表（所有变体 → 标准名称）
@@ -175,8 +181,10 @@ class RobustReActParser(ReActSingleInputOutputParser):
             r'Action\s*:\s*(.+?)(?:\n|$)',
             text, re.IGNORECASE
         )
+        # 改进: Action Input 支持多行内容（curl 含 JSON body 等）
+        # 使用贪婪匹配直到遇到明确的分隔符
         input_match = re.search(
-            r'Action\s*Input\s*:\s*(.+?)(?:\n\n|\nThought:|\nObservation:|\nFinal Answer:|$)',
+            r'Action\s*Input\s*:\s*(.+?)(?:\n\s*\nThought:|\n\s*\nObservation:|\nThought:|\nObservation:|\nFinal Answer:|\n\s*\nQuestion:|$)',
             text, re.IGNORECASE | re.DOTALL
         )
 
@@ -238,8 +246,38 @@ class RobustReActParser(ReActSingleInputOutputParser):
                 'curl', 'wget', 'nmap', 'xray', 'python', 'ruby', 'perl',
                 'echo', 'cat', 'ls', 'id', 'whoami', 'nc', 'bash',
             ]):
-                # 只取第一行命令（多行命令可能太长）
+                # 支持多行命令（如 curl 含 -d '...' 跨行的情况）
+                # 如果是 curl 命令，保留完整多行内容
+                if cmd.startswith('curl'):
+                    return cmd
+                # 其他命令只取第一行
                 first_line = cmd.split('\n')[0].strip()
                 return first_line
+
+        return None
+
+    def _extract_standalone_exploit_command(self, text: str) -> Union[str, None]:
+        """
+        从文本中提取独立的 exploit 命令（无 Action/Final Answer 包裹）。
+        Inquire Agent 常见问题：LLM 分析完 PoC 后直接输出命令但没加正确格式标签。
+        """
+        # 匹配 curl 命令（含多行 -d/-H 参数）
+        curl_match = re.search(
+            r'(curl\s+(?:(?:-[sSkXHd]|--[a-z-]+)\s+[^\n]*\n?)*(?:-[sSkXHd]|--[a-z-]+)?\s*[^\n]*https?://[^\s]+[^\n]*)',
+            text, re.IGNORECASE
+        )
+        if curl_match:
+            cmd = curl_match.group(1).strip()
+            # 确保是一个实际的 curl 命令而非描述文字
+            if 'http' in cmd and len(cmd) > 20:
+                return cmd
+
+        # 匹配 POST/GET HTTP 请求模板（vulhub README 格式）
+        http_match = re.search(
+            r'((?:POST|GET|PUT)\s+\S+\s+HTTP/\d\.\d.+?)(?:\n\n[A-Z]|\Z)',
+            text, re.DOTALL
+        )
+        if http_match:
+            return http_match.group(1).strip()
 
         return None

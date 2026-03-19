@@ -18,6 +18,7 @@ _REACT_HEADER = """Answer the following questions as best you can. You have acce
 
 CRITICAL FORMAT RULES (you MUST follow these EXACTLY):
 - Your response MUST use the EXACT format below. No deviations allowed.
+- Do NOT output any internal reasoning, thinking process, or <thinking> tags.
 - Each "Thought:" MUST be immediately followed by EITHER "Action:" OR "Final Answer:" on the very next line.
 - Do NOT write multiple paragraphs of analysis between Thought and Action.
 - Keep each Thought to ONE single sentence.

@@ -1,30 +1,38 @@
-# PSM系统配置
+# AutoPT 配置文件
+
+# 状态机配置
 psm:
-  sys_iterations: 15
-  exp_iterations: 3
-  query_iterations: 1
-  scan_iterations: 1
-  debug: True
-  draw_graph: False
+  sys_iterations: 15      # 整体流程最大迭代次数
+  exp_iterations: 3       # Exploit Agent单次最大操作数
+  query_iterations: 1     # Inquire Agent单次最大操作数
+  scan_iterations: 1      # Scan Agent单次最大操作数
+  debug: false            # 调试模式
+  draw_graph: false       # 是否生成状态机可视化图
 
 
-# AI配置
+# AI大模型配置
 ai:
-  # api config
+  # OpenAI兼容API配置
   openai_base: "https://api.whatai.cc/v1"
-  openai_key: "sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M"
+  openai_key: "sk-RieHLXUpKVClw8ieWHPMwLYDLVksDxEB9wfyTlyq8RiCSOy7"
   # NVIDIA API配置（使用Llama模型时需要）
   nvidia_key: ""
-  # hyperparameters
+  # 模型参数
   temperature: 0.5
 
 
 # 测试配置
+# 注意: 路径使用正斜杠 / 或相对路径，程序会自动转换为当前系统格式
 test:
   test_path: "../bench/data.jsonl"
   output_path: "result"
-  save_history: True # 是否保存历史记录
-  save_command: True # 是否保存命令
-  # models: ['gpt35turbo', 'gpt4omini', 'gpt4o']
-  models: ['gemini-3.1-pro-preview-thinking-high']
-  
+  save_history: true      # 是否保存历史记录
+  save_command: true       # 是否保存命令
+  models: ['gpt4omini']   # 可选: gpt35turbo, gpt4omini, gpt4o
+
+
+# Web界面配置
+web:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false

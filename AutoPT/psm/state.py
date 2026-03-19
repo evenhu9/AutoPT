@@ -228,7 +228,16 @@ class States:
         """Give Inquire the same compressed context so it does not run blind."""
         return "\n".join([self.problem, self._build_structured_context(state)])
 
-    async def agent_state(self, state: AgentState, agent, tools, sname: str) -> dict:
+    def agent_state(self, state: AgentState, agent, tools, sname: str) -> dict:
+        """
+        Agent 状态节点（同步版本）。
+        
+        修复说明：原始版本是 async def + await ainvoke()，
+        但 functools.partial 包装 async 函数后，Python < 3.12 中
+        asyncio.iscoroutinefunction(partial_obj) 返回 False，
+        导致 LangGraph 将其当作同步函数调用，返回 coroutine 而非 dict。
+        现改为同步方法 + invoke() 彻底解决此问题。
+        """
         if sname == 'Exploit':
             max_iterations = self.config['psm']['exp_iterations']
         elif sname == 'Inquire':
@@ -243,7 +252,7 @@ class States:
         elif sname == 'Inquire':
             agent_input = self._build_inquire_input(state)
 
-        result = await _executor.ainvoke({"input": agent_input})
+        result = _executor.invoke({"input": agent_input})
         # 将真正的message清洗出来
         message_str = ''
         history_str = []

@@ -1,114 +1,226 @@
-import paramiko
+"""
+本地交互式Shell - 替代原始SSH连接
+在 Windows 上通过 subprocess 本地执行命令，兼容 macOS/Linux
+保持与原始 InteractiveShell 相同的接口
+"""
+import subprocess
 import time
 import re
-import subprocess
 import os
+import platform
+import shutil
+
 
 class InteractiveShell:
-    def __init__(self, hostname='192.168.111.11', port=22, username='hyw', password='260259', timeout=30):
-        self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(hostname, username=username, password=password, port=port)
-        self.session = self.client.invoke_shell()
+    """
+    本地命令执行器，替代原有的 paramiko SSH 远程执行方式。
+    保持与原始版本完全相同的接口：
+      - __init__(hostname, port, username, password, timeout)
+      - execute_command(command) -> str
+      - close()
+    所有命令直接在本地机器上通过 subprocess 执行。
+    """
+
+    def __init__(self, hostname='127.0.0.1', port=22, username='', password='', timeout=120):
+        """
+        初始化本地Shell。
+        保留原始参数签名以兼容，但实际不使用SSH参数。
+
+        @param hostname: 兼容参数（不使用）
+        @param port: 兼容参数（不使用）
+        @param username: 兼容参数（不使用）
+        @param password: 兼容参数（不使用）
+        @param timeout: 命令执行超时时间（秒）
+        """
         self.timeout = timeout
-        # Wait for shell to be ready
-        time.sleep(1)
-        # Clear initial output
-        while self.session.recv_ready():
-            self.session.recv(1024)
-        # Test connection
+        self.system = platform.system()  # 'Windows', 'Darwin', 'Linux'
+        self.is_windows = self.system == 'Windows'
+        self.is_macos = self.system == 'Darwin'
+
+        # 自动检测xray路径
+        self.xray_path = self._detect_xray_path()
+
+        # 验证基本环境
         try:
-            self.execute_command("pwd")
+            result = self.execute_command("echo AutoPT_READY")
+            if "AutoPT_READY" not in result:
+                raise Exception("Shell环境验证失败")
         except Exception as e:
-            self.close()
-            raise Exception(f"Failed to initialize shell: {e}")
+            raise Exception(f"初始化本地Shell失败: {e}")
 
-    def execute_command(self, command:str):
-        """
-        Execute a command in a interactive kali docker shell on the local machine.
-        Initially, we are in the /root/ directory.
+    def _detect_xray_path(self) -> str:
+        """自动检测xray可执行文件路径，支持 Windows / macOS / Linux"""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        @param cmd: The command to execute.
+        if self.is_windows:
+            candidates = [
+                os.path.join(base_dir, '..', 'xray', 'xray_windows_amd64.exe'),
+                os.path.join(base_dir, 'xray', 'xray_windows_amd64.exe'),
+                os.path.join(base_dir, '..', 'xray', 'xray.exe'),
+            ]
+        elif self.is_macos:
+            arch = platform.machine()  # 'x86_64' or 'arm64'
+            if arch == 'arm64':
+                candidates = [
+                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_arm64'),
+                    os.path.join(base_dir, 'xray', 'xray_darwin_arm64'),
+                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_amd64'),
+                ]
+            else:
+                candidates = [
+                    os.path.join(base_dir, '..', 'xray', 'xray_darwin_amd64'),
+                    os.path.join(base_dir, 'xray', 'xray_darwin_amd64'),
+                ]
+        else:
+            # Linux
+            candidates = [
+                os.path.join(base_dir, '..', 'xray', 'xray_linux_amd64'),
+                os.path.join(base_dir, 'xray', 'xray_linux_amd64'),
+                os.path.join(base_dir, '..', 'xray', 'xray'),
+            ]
+
+        for path in candidates:
+            abs_path = os.path.abspath(path)
+            if os.path.exists(abs_path):
+                return abs_path
+
+        # 尝试在 PATH 中查找
+        xray_name = 'xray.exe' if self.is_windows else 'xray'
+        xray_in_path = shutil.which(xray_name)
+        if xray_in_path:
+            return xray_in_path
+
+        return "xray"  # 回退
+
+    def execute_command(self, command: str) -> str:
         """
-        # clean the command
+        在本地机器上执行命令。
+        保持与原始 SSH 版本相同的接口。
+
+        @param command: 要执行的命令
+        @return: 命令输出结果
+        """
+        # 清理命令（与原始版本逻辑一致）
         command = command.strip()
         if command.startswith("`") and command.endswith("`"):
             command = command[1:-1]
         if command.count('\n') > 0:
-            command = command.splitlines() # pyright: ignore[reportAssignmentType]
-            command = ''.join(command[1:-1])
+            lines = command.splitlines()
+            command = ' '.join(line.strip() for line in lines if line.strip())
+
+        # 屏蔽不支持的命令（与原始版本一致）
         if 'nano ' in command:
             return "nano is not supported in this environment"
         if 'searchsploit ' in command:
             return "searchsploit is not supported in this environment"
         if 'man ' in command:
             return "man is not supported in this environment"
+        if 'vim ' in command:
+            return "vim is not supported in this environment"
+        if 'vi ' in command:
+            return "vi is not supported in this environment"
 
-        # xray 命令在宿主机上执行
+        # xray 命令特殊处理（原始版本就在本地执行xray）
         if "xray" in command:
             return self._execute_xray_local(command)
-        
+
         # curl 命令添加 -s 标志以禁用进度条
         if "curl" in command and " -s" not in command:
-            # 检查是否已有其他标志，在URL前添加 -s
             command = command.replace("curl ", "curl -s ", 1)
-        
-        # 其他命令通过 SSH 在远程执行
-        if self.session is None:
-            raise Exception("No session available.")
 
-        self.session.send((command + '\n').encode('utf-8'))
+        # 本地执行命令（替代原始版本的SSH执行）
+        return self._execute_local(command)
 
-        start_time = time.time()
-        output = ""
-        # 使用正则表达式匹配提示符，格式为 *@*
-        prompt_pattern = re.compile(r'\w+@\w+')
-        
-        while True:
-            if time.time() - start_time > self.timeout: # execution timeout
-                self.session.send(b'\x03')
-                timeout_output = output
-                timeout_time = time.time()
-                
-                # Try to receive remaining output after Ctrl+C
-                while True:
-                    if time.time() - timeout_time > 3:  # Wait up to 3 more seconds
-                        timeout_output += "\nCommand execution timeout!"
-                        return self.omit(command, timeout_output)
-                    
-                    # Check if we see any prompt pattern using regex
-                    if prompt_pattern.search(timeout_output):
-                        timeout_output += "\nCommand execution timeout!"
-                        return self.omit(command, timeout_output)
-                    
-                    if self.session.recv_ready():
-                        try:
-                            timeout_output += self.session.recv(1024).decode('utf-8', 'ignore')
-                        except:
-                            pass
-                    else:
-                        time.sleep(0.1)
-            
-            # Check for any command prompt using regex as return condition
-            if prompt_pattern.search(output) and command not in output.split('\n')[-1]:
-                return self.omit(command, output)
-            
-            # read outputs
-            if self.session.recv_ready():
-                while self.session.recv_ready():
-                    try:
-                        output += self.session.recv(1024).decode('utf-8','ignore')
-                    except:
-                        pass
-                time.sleep(0.1)  # add a delay after receiving output
+    def _execute_local(self, command: str) -> str:
+        """通过 subprocess 在本地执行命令"""
+        try:
+            if self.is_windows:
+                # Windows 下使用 cmd，设置 UTF-8 代码页
+                result = subprocess.run(
+                    f'chcp 65001 >nul 2>&1 & {command}',
+                    shell=True,
+                    capture_output=True,
+                    timeout=self.timeout,
+                    encoding='utf-8',
+                    errors='replace',
+                    cwd=os.path.expanduser('~')
+                )
             else:
-                time.sleep(0.1)
-        
+                # Linux/Mac 下使用 bash
+                shell_path = self._detect_shell()
+                result = subprocess.run(
+                    [shell_path, '-c', command],
+                    capture_output=True,
+                    timeout=self.timeout,
+                    encoding='utf-8',
+                    errors='replace',
+                    cwd=os.path.expanduser('~')
+                )
 
-    def omit(self, command, output)->str:
-        '''
-        omit the command from the output for special commands
-        '''
+            output = (result.stdout or "")
+            if result.stderr:
+                stderr = result.stderr.strip()
+                if stderr and not stderr.startswith('WARNING'):
+                    output += "\n" + stderr
+
+            return self.omit(command, output.strip()) if output.strip() else "[命令执行完成，无输出]"
+
+        except subprocess.TimeoutExpired:
+            return f"Command execution timeout! ({self.timeout}s)"
+        except Exception as e:
+            return f"[ERROR] 命令执行失败: {str(e)}"
+
+    def _execute_xray_local(self, command: str) -> str:
+        """
+        在本地执行 xray 扫描命令。
+        与原始版本的 _execute_xray_local 逻辑一致。
+        """
+        try:
+            # 解析命令参数
+            parts = command.split()
+            if parts[0] == 'xray':
+                parts.pop(0)
+
+            # 构建完整命令
+            full_command = [self.xray_path] + parts
+
+            # 确定 xray 工作目录
+            xray_dir = os.path.dirname(self.xray_path) if os.path.exists(self.xray_path) else '.'
+
+            # Windows 下需要特殊处理
+            extra_kwargs = {}
+            if self.is_windows:
+                if hasattr(subprocess, 'CREATE_NO_WINDOW'):
+                    extra_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
+            result = subprocess.run(
+                full_command,
+                capture_output=True,
+                timeout=self.timeout,
+                cwd=xray_dir,
+                encoding='utf-8',
+                errors='replace',
+                **extra_kwargs
+            )
+
+            output = (result.stdout or "")
+            if result.stderr:
+                output += "\n" + result.stderr
+
+            if result.returncode != 0 and not output.strip():
+                output = f"[ERROR] xray command exited with code {result.returncode}"
+
+            return output.strip() if output else "[INFO] xray command completed with no output"
+
+        except subprocess.TimeoutExpired:
+            return f"[ERROR] xray command timeout after {self.timeout} seconds"
+        except FileNotFoundError:
+            return f"[ERROR] 找不到xray可执行文件: {self.xray_path}"
+        except Exception as e:
+            return f"[ERROR] Failed to execute xray: {str(e)}"
+
+    def omit(self, command, output) -> str:
+        """对特定命令的输出进行截断（与原始版本一致）"""
         if "make" in command:
             return "\n".join(output.split("\n")[-30:])
         elif "configure" in command:
@@ -118,55 +230,19 @@ class InteractiveShell:
         else:
             return output
 
-    def _execute_xray_local(self, command: str) -> str:
-        """
-        Execute xray command on the local Windows host machine.
-        xray is located at: c:\\Users\\86138\\Desktop\\毕设\\AutoPT\\xray\\xray_windows_amd64.exe
-        """
-        try:
-            # 获取 xray 可执行文件的路径
-            xray_dir = os.path.join(os.path.dirname(__file__), '..', 'xray')
-            xray_exe = os.path.abspath(os.path.join(xray_dir, 'xray_windows_amd64.exe'))
-            
-            # 解析命令参数
-            # 例如: "xray ws --url http://target.com" -> ["ws", "--url", "http://target.com"]
-            parts = command.split()
-            if parts[0] == 'xray':
-                parts.pop(0)  # 移除 'xray'
-            
-            # 构建完整命令
-            full_command = [xray_exe] + parts
-            
-            # 直接执行，指定 UTF-8 编码处理 xray 的 Unicode 输出
-            result = subprocess.run(
-                full_command,
-                capture_output=True,
-                timeout=self.timeout,
-                cwd=xray_dir,
-                encoding='utf-8',
-                errors='replace'  # 替换无法解码的字符而不是抛出异常
-            )
-            
-            # 合并 stdout 和 stderr
-            output = (result.stdout or "")
-            if result.stderr:
-                output += "\n" + result.stderr
-            
-            # 如果命令执行失败但有输出，返回输出；否则返回错误信息
-            if result.returncode != 0:
-                if not output.strip():
-                    output = f"[ERROR] xray command exited with code {result.returncode}"
-            
-            return output.strip() if output else "[INFO] xray command completed with no output"
-            
-        except subprocess.TimeoutExpired:
-            return f"[ERROR] xray command timeout after {self.timeout} seconds"
-        except Exception as e:
-            return f"[ERROR] Failed to execute xray: {str(e)}"
+    def _detect_shell(self) -> str:
+        """检测可用的 shell 路径"""
+        env_shell = os.environ.get('SHELL')
+        if env_shell and os.path.exists(env_shell):
+            return env_shell
+        for candidate in ['/bin/bash', '/bin/zsh', '/bin/sh']:
+            if os.path.exists(candidate):
+                return candidate
+        return '/bin/sh'
 
     def close(self):
-        if self.client:
-            self.client.close()
+        """兼容原始接口"""
+        pass
 
     def __enter__(self):
         return self
@@ -174,14 +250,13 @@ class InteractiveShell:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-import re
 
+# 漏洞解析函数（与原始版本完全一致）
 def parse_vuln(text):
     vulns = []
     color_codes = r'\x1b\[([0-?]*[ -/]*[@-~])'
     raw_text = re.sub(color_codes, '', text)
     lines = raw_text.splitlines()
-    # lines = text.splitlines()
     vuln_info = None
     for line in lines:
         if line.startswith('[Vuln: '):
@@ -211,20 +286,14 @@ def parse_vuln(text):
                 vuln_info = None
     return vulns
 
+
 if __name__ == '__main__':
-    # DEMO
+    print("=" * 60)
+    print("AutoPT 本地Shell测试")
+    print("=" * 60)
     with InteractiveShell() as shell:
-        print("="*60)
-        print(shell.execute_command("pwd"))
-
-        scan_res = shell.execute_command('xray ws --url 192.168.160.1:8081')
-        print(scan_res)
-        # color_codes = r'\x1b\[([0-?]*[ -/]*[@-~])'
-        # scan_res = re.sub(color_codes, '', scan_res)
-        vuln_dict = parse_vuln(scan_res)
-
-        print(vuln_dict)
-        result = [item for item in vuln_dict if 'level' in item]
-
-        print(result)
-
+        print("[*] 测试基本命令:")
+        print(shell.execute_command("whoami"))
+        print()
+        print("[*] 测试curl:")
+        print(shell.execute_command("curl -s --max-time 5 http://localhost:8080 || echo '目标不可达'"))

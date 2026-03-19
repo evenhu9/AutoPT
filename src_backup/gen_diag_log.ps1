@@ -150,8 +150,8 @@ if (-not $resolvedInput) {
 $resolvedConfig = Resolve-FirstExistingPath @(
     $ConfigPath,
     ".\config\config.yml",
-    "..\AutoPT\config\config.yml",
-    ".\AutoPT\config\config.yml"
+    "..\src\config\config.yml",
+    ".\src\config\config.yml"
 )
 
 $raw = Get-Content -Path $resolvedInput -Raw

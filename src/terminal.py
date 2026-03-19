@@ -75,11 +75,24 @@ class InteractiveShell:
         """
         # clean the command
         command = command.strip()
-        if command.startswith("`") and command.endswith("`"):
+        # 去除包裹的反引号（markdown 代码块格式）
+        if command.startswith("```") and command.endswith("```"):
+            lines = command.splitlines()
+            # 去掉首行 ``` 和末行 ```，保留中间内容
+            lines = lines[1:-1] if len(lines) > 2 else lines
+            command = '\n'.join(lines).strip()
+        elif command.startswith("`") and command.endswith("`"):
             command = command[1:-1]
-        if command.count('\n') > 0:
-            command = command.splitlines() # pyright: ignore[reportAssignmentType]
-            command = ''.join(command[1:-1])
+        
+        # 多行命令处理：用 && 或 ; 连接，而非丢弃首尾行
+        if '\n' in command:
+            lines = [l.strip() for l in command.splitlines() if l.strip()]
+            if len(lines) > 1:
+                # 如果每行都是独立命令，用 && 连接
+                command = ' && '.join(lines)
+            else:
+                command = lines[0] if lines else command
+
         if 'nano ' in command:
             return "nano is not supported in this environment"
         if 'searchsploit ' in command:
@@ -104,9 +117,19 @@ class InteractiveShell:
     def _execute_local(self, command: str) -> str:
         """本地模式：使用 subprocess 执行命令"""
         try:
+            # 使用 shell=True 执行，通过 ['bash', '-c', command] 确保引号被正确传递
+            # 避免直接 shell=True 导致的二次引号解析问题
+            use_shell_list = False
+            bash_path = '/bin/bash'
+            if os.path.exists(bash_path):
+                exec_cmd = [bash_path, '-c', command]
+                use_shell_list = True
+            else:
+                exec_cmd = command
+
             result = subprocess.run(
-                command,
-                shell=True,
+                exec_cmd,
+                shell=not use_shell_list,  # 使用 list 形式时不需要 shell=True
                 capture_output=True,
                 timeout=self.timeout,
                 encoding='utf-8',
@@ -119,7 +142,20 @@ class InteractiveShell:
             
             if not output.strip():
                 if result.returncode != 0:
-                    output = f"Command exited with code {result.returncode}"
+                    # 提供更详细的错误信息
+                    error_hints = {
+                        1: "General error",
+                        2: "Misuse of shell command",
+                        3: "URL malformed (check quotes and special characters in URL)",
+                        6: "Could not resolve host",
+                        7: "Failed to connect to host",
+                        22: "HTTP returned error",
+                        28: "Operation timeout",
+                        56: "Failure in receiving network data",
+                        127: "Command not found",
+                    }
+                    hint = error_hints.get(result.returncode, "Unknown error")
+                    output = f"Command exited with code {result.returncode} ({hint})"
                 else:
                     output = "(no output)"
             

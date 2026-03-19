@@ -1,12 +1,12 @@
 ai:
   nvidia_key: nv-test-key
   openai_base: https://api.whatai.cc/v1
-  openai_key: sk-CUOVrhG13Dg2ynz8WxQSrvuBwJliZ3A3Y8OKzXAYRB62Zu3M
+  openai_key: sk-RieHLXUpKVClw8ieWHPMwLYDLVksDxEB9wfyTlyq8RiCSOy7
   temperature: 0.5
 local:
   command_timeout: 120
   target_host: 192.168.1.100
-  xray_path: /usr/bin/xray
+  xray_path: ../xray/xray.exe
 psm:
   debug: true
   draw_graph: false

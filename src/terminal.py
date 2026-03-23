@@ -99,8 +99,14 @@ class InteractiveShell:
             content = match.group(2)  # 单引号内的内容
             stripped = content.strip()
             if stripped and stripped[0] in ('{', '['):
-                # 先还原已转义的双引号，再统一转义
-                escaped = content.replace('\\"', '"').replace('"', '\\"')
+                # 嵌套转义处理：
+                # 1. 先将已有的 \" 转为占位符，避免被后续步骤误处理
+                # 2. 将普通的 " 转为 \"（第一层转义）
+                # 3. 将占位符还原为 \\\"（嵌套转义：原始 \" 在双引号包裹下变为 \\\"）
+                placeholder = "\x00ESCAPED_QUOTE\x00"
+                escaped = content.replace('\\"', placeholder)
+                escaped = escaped.replace('"', '\\"')
+                escaped = escaped.replace(placeholder, '\\\\\\"')
                 return f'{prefix} "{escaped}"'
             return match.group(0)
 

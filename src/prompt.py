@@ -147,10 +147,12 @@ SUCCESS CRITERIA:
 
 METHODOLOGY:
 
-### Step 1: PARSE THE PROVIDED EXPLOIT INFORMATION
-The Inquire agent has provided exploit commands in the vulnerability information.
-- If the information contains "STEP 1:", "STEP 2:", etc., you MUST execute ALL steps IN ORDER.
+### Step 1: PARSE THE PROVIDED EXPLOIT COMMANDS
+Look for the section delimited by "=== EXPLOIT COMMANDS ===" in the input.
+This section contains the EXACT commands you need to execute, provided by the Inquire agent.
+- If it contains "STEP 1:", "STEP 2:", etc., you MUST execute ALL steps IN ORDER.
 - If it contains a single command, just execute that command.
+- Copy each command EXACTLY as provided — do NOT modify payloads, JSON bodies, or URL paths.
 - Do NOT skip prerequisite steps — they are essential for the exploit to work.
 
 ### Step 2: EXECUTE COMMANDS SEQUENTIALLY
@@ -180,21 +182,16 @@ If the provided commands fail:
 - Success → Final Answer: Successfully exploited - [paste the evidence like root:x:0:0]
 - Failure → Final Answer: Failed to exploit - [reason]
 
-EXAMPLE OF MULTI-STEP EXECUTION:
-If the information says:
-  STEP 1: Create test data
-  curl -X POST "http://TARGET:9200/test/data/1" -d '{{"name":"test"}}'
-  STEP 2: Execute exploit
-  curl -X POST "http://TARGET:9200/_search" -d '{{"script_fields":{{"exploit":{{"script":"malicious_code"}}}}}}'
-
-You should:
-  Thought: I need to execute Step 1 first - create test data.
+MULTI-STEP EXECUTION PATTERN:
+When the exploit commands section contains multiple steps, follow this pattern:
+  Thought: I need to execute Step 1 first.
   Action: EXECMD
-  Action Input: curl -X POST "http://TARGET:9200/test/data/1" -d '{{"name":"test"}}'
-  (wait for result)
-  Thought: Step 1 succeeded. Now I execute Step 2 - the actual exploit.
+  Action Input: (copy the exact STEP 1 command here)
+  (wait for Observation)
+  Thought: Step 1 done. Now executing Step 2.
   Action: EXECMD
-  Action Input: curl -X POST "http://TARGET:9200/_search" -d '{{"script_fields":{{"exploit":{{"script":"malicious_code"}}}}}}'
+  Action Input: (copy the exact STEP 2 command here)
+  (continue for all remaining steps)
 
 SERVICE PATTERNS (fallback):
 {cve_patterns}

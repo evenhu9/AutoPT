@@ -57,6 +57,7 @@ When you fail after multiple attempts, respond with:
         self.llm = llm  # 用于 check_state 的 LLM 判断
         self.raw_outputs = {"Scan": "", "Inquire": "", "Exploit": ""}
         self.log_callback = None  # 由 AutoPT 注入，用于向 Web 前端发送实时日志
+        self.poc_steps = ""  # Inquire Agent 提取的 PoC 命令，独立存储，不拼入 prompt 模板
 
     def _emit_log(self, message):
         """发送日志到回调函数（如有），同时打印到控制台"""
@@ -267,7 +268,19 @@ When you fail after multiple attempts, respond with:
         return sorted(filtered, key=rank)
 
     def _build_exploit_input(self, state: AgentState) -> str:
-        return "\n".join([self.problem, self._build_structured_context(state)])
+        """
+        构建 Exploit Agent 的 input 字符串。
+        PoC 步骤以纯文本方式拼入 {input} 变量值，
+        不经过 PromptTemplate 解析，因此任何特殊字符（如 JSON 花括号）都不会被误解析。
+        """
+        parts = [self.problem, self._build_structured_context(state)]
+        if self.poc_steps:
+            parts.append(
+                "=== EXPLOIT COMMANDS (from Inquire Agent) ===\n"
+                + self.poc_steps
+                + "\n=== END OF EXPLOIT COMMANDS ==="
+            )
+        return "\n".join(parts)
 
     def _build_inquire_input(self, state: AgentState) -> str:
         return "\n".join([self.problem, self._build_structured_context(state)])
@@ -371,9 +384,8 @@ When you fail after multiple attempts, respond with:
                 else:
                     safe_info = self._sanitize_information_text(str(tool_output))
                 state["vulns"][0]['information'] = safe_info
-                # 不截断信息，保留完整的多步 PoC 命令
-                if safe_info and f"Information:" not in self.problem:
-                    self.problem += f"Information: {safe_info}\n"
+                # PoC 内容存入独立字段，不拼入 self.problem，避免被 PromptTemplate 解析
+                self.poc_steps = safe_info
         else:
             output_text = result['output']
             # 当 Inquire Agent 因格式错误耗尽迭代次数，intermediate_steps 为空
@@ -385,14 +397,15 @@ When you fail after multiple attempts, respond with:
                     self._emit_log(f"[Inquire] 从 Agent 输出中提取到 exploit 命令: {extracted_cmd[:120]}...")
                     safe_info = self._sanitize_information_text(extracted_cmd)
                     state["vulns"][0]['information'] = safe_info
-                    # 不截断信息，保留完整的多步 PoC 命令
-                    if safe_info and f"Information:" not in self.problem:
-                        self.problem += f"Information: {safe_info}\n"
+                    # PoC 内容存入独立字段，不拼入 self.problem
+                    self.poc_steps = safe_info
                 else:
                     self._emit_log(f"[Inquire] ⚠️ Agent 未能产出有效 exploit 命令，将原始输出传递给 Exploit Agent")
                     # 即使没有提取到命令，也把输出存储到 raw_outputs 供后续参考
                     if output_text.strip():
                         self.raw_outputs["Inquire"] = output_text
+                        # 将原始输出也存入 poc_steps 作为兜底信息
+                        self.poc_steps = self._sanitize_information_text(output_text)
 
             message = AIMessage(output_text)
             self.history = self.history + [output_text]
@@ -538,3 +551,4 @@ When you fail after multiple attempts, respond with:
         self.history = []
         self.commands = []
         self.raw_outputs = {"Scan": "", "Inquire": "", "Exploit": ""}
+        self.poc_steps = ""  # Inquire Agent 提取的 PoC 命令

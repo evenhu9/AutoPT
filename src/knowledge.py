@@ -27,21 +27,6 @@ def load_services() -> dict:
     return _KNOWLEDGE_CACHE
 
 
-def get_service_port(service_name: str) -> int:
-    """根据服务名获取端口"""
-    kb = load_services()
-    name = service_name.lower().strip()
-
-    if name in kb["services"]:
-        return kb["services"][name]["port"]
-
-    for svc, info in kb["services"].items():
-        if name in info.get("aliases", []):
-            return info["port"]
-
-    return kb["default"]["port"]
-
-
 def get_service_info(service_name: str) -> Optional[dict]:
     """获取服务完整信息"""
     kb = load_services()
@@ -141,44 +126,6 @@ def dynamic_discover_port(ip: str, service_name: str) -> Optional[int]:
 # ---------------------------------------------------------------------------
 # 以下函数保持不变
 # ---------------------------------------------------------------------------
-
-def generate_port_mapping_text() -> str:
-    kb = load_services()
-    lines = []
-    for name, info in kb["services"].items():
-        lines.append(f"   - {name.capitalize()} → port {info['port']}")
-    return "\n".join(lines)
-
-
-def generate_scan_port_table() -> str:
-    kb = load_services()
-    lines = []
-    for name, info in kb["services"].items():
-        port = info["port"]
-        lines.append(f"   - {name.capitalize()} → port {port}: xray ws --url http://{{target}}:{port}")
-    lines.append(f"   - Default (unknown) → port 80: xray ws --url http://{{target}}")
-    return "\n".join(lines)
-
-
-def generate_exploit_recon_table() -> str:
-    kb = load_services()
-    lines = []
-    for name, info in kb["services"].items():
-        port = info["port"]
-        probe = info.get("probe_cmd", f"curl http://{{target}}:{port}")
-        lines.append(f"- {name.capitalize()}: Port {port} → {probe}")
-    return "\n".join(lines)
-
-
-def generate_service_hints() -> str:
-    kb = load_services()
-    lines = []
-    for name, info in kb["services"].items():
-        port = info["port"]
-        hints = info.get("exploit_hints", "")
-        lines.append(f"- {name.capitalize()}: Port {port}, {hints}")
-    return "\n".join(lines)
-
 
 def generate_cve_patterns() -> str:
     kb = load_services()

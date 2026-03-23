@@ -156,42 +156,6 @@ When you fail after multiple attempts, respond with:
             cleaned.append(ln)
         return '\n'.join(cleaned)
 
-    def _format_curl_for_windows(self, text: str) -> str:
-        """
-        将 curl 命令中单引号包裹的 JSON 数据转换为 Windows 兼容格式。
-        
-        Windows 的 curl 不支持单引号，必须使用双引号并对内部双引号进行转义。
-        例如:
-          -d '{"name": "test"}'         → -d "{\"name\": \"test\"}"
-          --data '{"key": "value"}'     → --data "{\"key\": \"value\"}"
-          --data-raw '{"a": 1}'         → --data-raw "{\"a\": 1}"
-        
-        仅处理单引号内内容看起来像 JSON 的情况（以 { 或 [ 开头），
-        避免误改非 JSON 的单引号参数（如 python -c 'script'）。
-        """
-        if not text:
-            return text
-
-        # 匹配 curl 的 -d / --data / --data-raw / --data-binary 参数后紧跟的单引号 JSON
-        # 模式: (-d|--data|--data-raw|--data-binary)\s+'(JSON_CONTENT)'
-        def replace_single_quoted_json(match):
-            prefix = match.group(1)  # -d 或 --data 等
-            content = match.group(2)  # 单引号内的内容
-            # 检查内容是否看起来像 JSON（以 { 或 [ 开头）
-            stripped = content.strip()
-            if stripped and stripped[0] in ('{', '['):
-                # 对内部未转义的双引号进行转义
-                escaped = content.replace('\\"', '"')  # 先还原已转义的
-                escaped = escaped.replace('"', '\\"')  # 再统一转义
-                return f'{prefix} "{escaped}"'
-            # 非 JSON 内容保持原样
-            return match.group(0)
-
-        # 正则匹配: -d/-data/--data-raw/--data-binary 后的单引号字符串
-        pattern = r"(-d|--data(?:-raw|-binary)?)\s+'((?:[^'\\]|\\.)*)'"
-        result = re.sub(pattern, replace_single_quoted_json, text)
-        return result
-
     def _extract_service_fingerprint(self, text: str) -> str:
         cleaned = self._strip_ansi(str(text)).replace('\r', '')
         lines = []
@@ -456,8 +420,8 @@ When you fail after multiple attempts, respond with:
                 safe_info = self._sanitize_information_text(str(extracted_poc))
                 state["vulns"][0]['information'] = safe_info
                 # PoC 内容存入独立字段，不拼入 self.problem，避免被 PromptTemplate 解析
-                # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
-                self.poc_steps = self._format_curl_for_windows(safe_info)
+                # curl 命令中的单引号 JSON 转换由 terminal.py 的 execute_command() 自动处理
+                self.poc_steps = safe_info
                 self._emit_log(f"[Inquire] poc_steps 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
         else:
             output_text = result['output']
@@ -471,8 +435,8 @@ When you fail after multiple attempts, respond with:
                     safe_info = self._sanitize_information_text(extracted_cmd)
                     state["vulns"][0]['information'] = safe_info
                     # PoC 内容存入独立字段，不拼入 self.problem
-                    # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
-                    self.poc_steps = self._format_curl_for_windows(safe_info)
+                    # curl 命令中的单引号 JSON 转换由 terminal.py 的 execute_command() 自动处理
+                    self.poc_steps = safe_info
                     self._emit_log(f"[Inquire] poc_steps 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
                 else:
                     self._emit_log(f"[Inquire] ⚠️ Agent 未能产出有效 exploit 命令，将原始输出传递给 Exploit Agent")
@@ -480,8 +444,8 @@ When you fail after multiple attempts, respond with:
                     if output_text.strip():
                         self.raw_outputs["Inquire"] = output_text
                         # 将原始输出也存入 poc_steps 作为兜底信息
-                        # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
-                        self.poc_steps = self._format_curl_for_windows(self._sanitize_information_text(output_text))
+                        # curl 命令中的单引号 JSON 转换由 terminal.py 的 execute_command() 自动处理
+                        self.poc_steps = self._sanitize_information_text(output_text)
                         self._emit_log(f"[Inquire] poc_steps(兜底) 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
 
             message = AIMessage(output_text)

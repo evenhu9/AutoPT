@@ -68,6 +68,35 @@ class InteractiveShell:
             return xray
         return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'xray', 'xray_linux_amd64'))
 
+    def _format_curl_json(self, command: str) -> str:
+        """
+        将 curl 命令中单引号包裹的 JSON 数据转换为双引号 + 转义格式。
+        
+        Linux 的 curl 支持单引号，但 Windows 和某些远程环境不支持。
+        统一转换为双引号格式可确保在所有平台上正常执行。
+        
+        例如:
+          curl -d '{"name": "test"}'   → curl -d "{\"name\": \"test\"}"
+          curl --data '{"a": [1,2]}'   → curl --data "{\"a\": [1,2]}"
+        
+        仅处理内容以 { 或 [ 开头的单引号参数，避免误改非 JSON 内容。
+        """
+        if 'curl' not in command:
+            return command
+
+        def _replace_match(match):
+            prefix = match.group(1)  # -d / --data / --data-raw / --data-binary
+            content = match.group(2)  # 单引号内的内容
+            stripped = content.strip()
+            if stripped and stripped[0] in ('{', '['):
+                # 先还原已转义的双引号，再统一转义
+                escaped = content.replace('\\"', '"').replace('"', '\\"')
+                return f'{prefix} "{escaped}"'
+            return match.group(0)
+
+        pattern = r"(-d|--data(?:-raw|-binary)?)\s+'((?:[^'\\]|\\.)*)'"
+        return re.sub(pattern, _replace_match, command)
+
     def execute_command(self, command:str):
         """
         Execute a command in a interactive shell.
@@ -95,6 +124,11 @@ class InteractiveShell:
         # curl 命令添加 -s 标志以禁用进度条
         if "curl" in command and " -s" not in command:
             command = command.replace("curl ", "curl -s ", 1)
+        
+        # curl 命令中单引号包裹的 JSON 数据转换为双引号 + 转义格式
+        # 确保在所有平台（尤其是 Windows）上 JSON 报文能被正确解析
+        if "curl" in command:
+            command = self._format_curl_json(command)
         
         # 根据模式执行
         if self.local_mode:
@@ -251,58 +285,4 @@ class InteractiveShell:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
-import re
-
-def parse_vuln(text):
-    vulns = []
-    color_codes = r'\x1b\[([0-?]*[ -/]*[@-~])'
-    raw_text = re.sub(color_codes, '', text)
-    lines = raw_text.splitlines()
-    # lines = text.splitlines()
-    vuln_info = None
-    for line in lines:
-        if line.startswith('[Vuln: '):
-            vuln_info = {}
-            vuln_match = re.search(r'\[Vuln: (.*?)\]', line)
-            if vuln_match:
-                vuln_info['vuln'] = vuln_match.group(1)
-        elif vuln_info:
-            match = re.search(r'(\w+)\s+"(.*?)"', line)
-            if match:
-                vuln_info[match.group(1).lower()] = match.group(2)
-            elif line.startswith('Payload'):
-                match = re.search(r'Payload\s+"(.*?)"', line)
-                if match:
-                    vuln_info['payload'] = match.group(1)
-            elif line.startswith('Links'):
-                match = re.search(r'Links\s+\[(.*?)\]', line)
-                if match:
-                    links = match.group(1).split(', ')
-                    vuln_info['links'] = [link.strip('"') for link in links]
-            elif line.startswith('level'):
-                match = re.search(r'level\s+"(.*?)"\s*', line)
-                if match:
-                    vuln_info['level'] = match.group(1)
-            elif 'target' in vuln_info and 'vulntype' in vuln_info and 'vuln' in vuln_info:
-                vulns.append(vuln_info)
-                vuln_info = None
-    return vulns
-
-if __name__ == '__main__':
-    # DEMO
-    with InteractiveShell() as shell:
-        print("="*60)
-        print(shell.execute_command("pwd"))
-
-        scan_res = shell.execute_command('xray ws --url 192.168.160.1:8081')
-        print(scan_res)
-        # color_codes = r'\x1b\[([0-?]*[ -/]*[@-~])'
-        # scan_res = re.sub(color_codes, '', scan_res)
-        vuln_dict = parse_vuln(scan_res)
-
-        print(vuln_dict)
-        result = [item for item in vuln_dict if 'level' in item]
-
-        print(result)
 

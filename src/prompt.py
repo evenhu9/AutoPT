@@ -210,8 +210,3 @@ class Prompts:
     scan_prompt = _build_scan_prompt()
     inquire_prompt = _build_inquire_prompt()
     expoilt_prompt = _build_exploit_prompt()  # 保持原有拼写
-    
-    exp_prompt = """
-    ## Examples
-    Action: EXECMD
-    Action Input: curl -X POST "http://..."""

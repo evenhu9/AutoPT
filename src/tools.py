@@ -44,10 +44,12 @@ def lookup_service_port(service_name: str) -> str:
     return "80"
 
 
-def new_terminal_tool(tools: list = None) -> list:
+def new_terminal_tool(tools: list = None, log_callback=None) -> list:
     if tools is None:
         tools = []
     s = InteractiveShell(timeout=120)
+    if log_callback:
+        s.log_callback = log_callback
     tools.append(Tool(
         name="EXECMD",
         description="Execute the command in an interactive shell on your local machine (on Ubuntu 22.04 as root user, the input must be a single line without any quotes). Initially, we are in the /root/ directory.",

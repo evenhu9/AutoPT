@@ -17,6 +17,7 @@ class InteractiveShell:
         self.local_mode = local_mode
         self.client = None
         self.session = None
+        self.log_callback = None  # 可选: 由外部注入, 用于向前端发送实时日志
         
         # 自动检测模式：如果没有提供 SSH 凭据，使用本地模式
         if self.local_mode is None:
@@ -48,6 +49,15 @@ class InteractiveShell:
         
         # 确定 xray 可执行文件路径
         self.xray_path = self._find_xray_path()
+
+    def _emit_log(self, message):
+        """发送日志到回调函数（如有），同时打印到控制台"""
+        print(message)
+        if self.log_callback:
+            try:
+                self.log_callback(message)
+            except Exception:
+                pass
 
     def _find_xray_path(self) -> str:
         """查找 xray 可执行文件路径"""
@@ -128,7 +138,10 @@ class InteractiveShell:
         # curl 命令中单引号包裹的 JSON 数据转换为双引号 + 转义格式
         # 确保在所有平台（尤其是 Windows）上 JSON 报文能被正确解析
         if "curl" in command:
+            original_cmd = command
             command = self._format_curl_json(command)
+            if command != original_cmd:
+                self._emit_log(f"[格式化] curl JSON 已转换为双引号格式: {command[:200]}{'...' if len(command) > 200 else ''}")
         
         # 根据模式执行
         if self.local_mode:
@@ -285,4 +298,3 @@ class InteractiveShell:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-

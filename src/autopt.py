@@ -110,7 +110,7 @@ class AutoPT:
         robust_parser = RobustReActParser()
 
         # scan agent
-        scan_tools = new_terminal_tool()
+        scan_tools = new_terminal_tool(log_callback=self.log_callback)
         scan_tools = service_lookup_tool(scan_tools)
         scan = create_react_agent(
             llm=llm,
@@ -131,7 +131,7 @@ class AutoPT:
         inquirenode = functools.partial(self.states.agent_state, agent=inquire, tools=inquire_tools, sname="Inquire")
 
         # exploit agent
-        exploit_tools = new_terminal_tool()
+        exploit_tools = new_terminal_tool(log_callback=self.log_callback)
         exploit_tools = cat_html_tool(exploit_tools)
         exploit_tools = playwright_tool(exploit_tools)
         exploit = create_react_agent(

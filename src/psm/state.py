@@ -412,17 +412,53 @@ When you fail after multiple attempts, respond with:
             self.history = self.history + history_str
             self.commands.append(tool_input)
             if sname == 'Inquire' and len(state["vulns"]) > 0:
-                # 对 Inquire Agent，优先使用 result['output']（即 Final Answer）
-                # 因为 Final Answer 通常包含了完整的多步命令
+                # 对 Inquire Agent，多层次提取 PoC：
+                # 层级1: result['output']（Final Answer）—— 最佳来源
+                # 层级2: Agent 推理文本 (i[0].log) 中提取命令
+                # 层级3: ReadHTML 工具返回的原始内容中提取命令
+                # 层级4: 最后一次工具输出作为兜底
                 final_output = result.get('output', '')
+                extracted_poc = ""
+
+                # 层级1: Final Answer 包含有效 PoC
                 if final_output and final_output.strip():
-                    safe_info = self._sanitize_information_text(str(final_output))
-                else:
-                    safe_info = self._sanitize_information_text(str(tool_output))
+                    test_cmd = self._try_extract_exploit_from_output(final_output)
+                    if test_cmd:
+                        extracted_poc = final_output
+                        self._emit_log(f"[Inquire] ✅ 从 Final Answer 中提取到 PoC")
+
+                # 层级2: 从 Agent 的推理文本中提取命令
+                if not extracted_poc:
+                    for step in reversed(result['intermediate_steps']):
+                        agent_log = step[0].log
+                        cmd = self._try_extract_exploit_from_output(agent_log)
+                        if cmd:
+                            extracted_poc = cmd
+                            self._emit_log(f"[Inquire] ✅ 从 Agent 推理文本中提取到 PoC")
+                            break
+
+                # 层级3: 从 ReadHTML 工具返回的原始内容中提取命令
+                if not extracted_poc:
+                    for step in reversed(result['intermediate_steps']):
+                        if step[0].tool == 'ReadHTML':
+                            raw_html_output = str(step[1])
+                            cmd = self._try_extract_exploit_from_output(raw_html_output)
+                            if cmd:
+                                extracted_poc = cmd
+                                self._emit_log(f"[Inquire] ✅ 从 ReadHTML 返回内容中提取到 PoC")
+                                break
+
+                # 层级4: 兜底 - 使用 Final Answer 或最后工具输出
+                if not extracted_poc:
+                    self._emit_log(f"[Inquire] ⚠️ 未提取到明确 PoC 命令，使用原始输出作为兜底")
+                    extracted_poc = final_output if (final_output and final_output.strip()) else str(tool_output)
+
+                safe_info = self._sanitize_information_text(str(extracted_poc))
                 state["vulns"][0]['information'] = safe_info
                 # PoC 内容存入独立字段，不拼入 self.problem，避免被 PromptTemplate 解析
                 # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
                 self.poc_steps = self._format_curl_for_windows(safe_info)
+                self._emit_log(f"[Inquire] poc_steps 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
         else:
             output_text = result['output']
             # 当 Inquire Agent 因格式错误耗尽迭代次数，intermediate_steps 为空
@@ -437,6 +473,7 @@ When you fail after multiple attempts, respond with:
                     # PoC 内容存入独立字段，不拼入 self.problem
                     # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
                     self.poc_steps = self._format_curl_for_windows(safe_info)
+                    self._emit_log(f"[Inquire] poc_steps 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
                 else:
                     self._emit_log(f"[Inquire] ⚠️ Agent 未能产出有效 exploit 命令，将原始输出传递给 Exploit Agent")
                     # 即使没有提取到命令，也把输出存储到 raw_outputs 供后续参考
@@ -445,6 +482,7 @@ When you fail after multiple attempts, respond with:
                         # 将原始输出也存入 poc_steps 作为兜底信息
                         # 自动将单引号 JSON 转换为 Windows 兼容格式（双引号 + 转义）
                         self.poc_steps = self._format_curl_for_windows(self._sanitize_information_text(output_text))
+                        self._emit_log(f"[Inquire] poc_steps(兜底) 长度: {len(self.poc_steps)}, 前200字符: {self.poc_steps[:200]}...")
 
             message = AIMessage(output_text)
             self.history = self.history + [output_text]

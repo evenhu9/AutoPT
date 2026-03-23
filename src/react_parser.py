@@ -186,9 +186,15 @@ class RobustReActParser(ReActSingleInputOutputParser):
         'current_webpage': 'current_webpage',
     }
 
+    # 无效工具名黑名单 —— 这些词虽然匹配 [A-Za-z_]{2,25}，但不是工具
+    INVALID_TOOL_NAMES = {'none', 'null', 'undefined', 'true', 'false', 'na', 'n/a'}
+
     def _normalize_tool_name(self, raw: str) -> str:
         """将原始 Action 字符串规范化为已知工具名，找不到返回空字符串。"""
         raw = raw.strip().strip('"\'` ')
+        # 0. 排除无效工具名（如 None, null 等）
+        if raw.lower() in self.INVALID_TOOL_NAMES:
+            return ""
         # 1. 精确匹配（忽略大小写）
         key = raw.lower().replace(' ', '').replace('_', '')
         for k, v in self.KNOWN_TOOLS.items():

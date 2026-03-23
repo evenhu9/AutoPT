@@ -81,7 +81,7 @@ def cat_html_tool(tools: list = None) -> list:
 def playwright_tool(tools: list = None) -> list:
     if tools is None:
         tools = []
-    async_browser = create_async_playwright_browser()
-    toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
+    sync_browser = create_sync_playwright_browser()
+    toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
     tools += toolkit.get_tools()
     return tools

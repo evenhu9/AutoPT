@@ -10,7 +10,7 @@ local:
 psm:
   debug: true
   draw_graph: false
-  exp_iterations: 5
+  exp_iterations: 8
   query_iterations: 3
   scan_iterations: 5
   sys_iterations: 20

@@ -363,11 +363,17 @@ When you fail after multiple attempts, respond with:
             self.history = self.history + history_str
             self.commands.append(tool_input)
             if sname == 'Inquire' and len(state["vulns"]) > 0:
-                safe_info = self._sanitize_information_text(str(tool_output))
+                # 对 Inquire Agent，优先使用 result['output']（即 Final Answer）
+                # 因为 Final Answer 通常包含了完整的多步命令
+                final_output = result.get('output', '')
+                if final_output and final_output.strip():
+                    safe_info = self._sanitize_information_text(str(final_output))
+                else:
+                    safe_info = self._sanitize_information_text(str(tool_output))
                 state["vulns"][0]['information'] = safe_info
-                info_summary = safe_info[:240] if len(safe_info) > 240 else safe_info
-                if info_summary and f"Information: {info_summary}" not in self.problem:
-                    self.problem += f"Information: {info_summary}\n"
+                # 不截断信息，保留完整的多步 PoC 命令
+                if safe_info and f"Information:" not in self.problem:
+                    self.problem += f"Information: {safe_info}\n"
         else:
             output_text = result['output']
             # 当 Inquire Agent 因格式错误耗尽迭代次数，intermediate_steps 为空
@@ -379,9 +385,9 @@ When you fail after multiple attempts, respond with:
                     self._emit_log(f"[Inquire] 从 Agent 输出中提取到 exploit 命令: {extracted_cmd[:120]}...")
                     safe_info = self._sanitize_information_text(extracted_cmd)
                     state["vulns"][0]['information'] = safe_info
-                    info_summary = safe_info[:240] if len(safe_info) > 240 else safe_info
-                    if info_summary and f"Information: {info_summary}" not in self.problem:
-                        self.problem += f"Information: {info_summary}\n"
+                    # 不截断信息，保留完整的多步 PoC 命令
+                    if safe_info and f"Information:" not in self.problem:
+                        self.problem += f"Information: {safe_info}\n"
                 else:
                     self._emit_log(f"[Inquire] ⚠️ Agent 未能产出有效 exploit 命令，将原始输出传递给 Exploit Agent")
                     # 即使没有提取到命令，也把输出存储到 raw_outputs 供后续参考

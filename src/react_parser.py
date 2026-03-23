@@ -73,6 +73,32 @@ class RobustReActParser(ReActSingleInputOutputParser):
                 log=text,
             )
 
+        # ---- Step 3.5: Action: None 特殊处理 ----
+        # LLM 输出了 Action: None，说明它已完成分析但不知道用 Final Answer 结束
+        # 尝试从文本中提取有用内容作为 Final Answer
+        if re.search(r'Action\s*:\s*None\b', cleaned, re.IGNORECASE):
+            # 提取 Action: None 之前的所有 Thought 内容作为分析结果
+            content_before_none = re.split(r'Action\s*:\s*None', cleaned, flags=re.IGNORECASE)[0]
+            # 先尝试从文本中提取可执行命令
+            cmd = self._extract_standalone_exploit_command(cleaned)
+            if not cmd:
+                cmd = self._extract_command_from_codeblock(cleaned)
+            if cmd:
+                return AgentFinish(
+                    return_values={"output": cmd},
+                    log=text,
+                )
+            # 没有命令但有有意义的分析内容，也作为 Final Answer 返回
+            # 这样至少能传递信息给下一个 Agent
+            meaningful_text = content_before_none.strip()
+            # 移除 "Thought:" 前缀
+            meaningful_text = re.sub(r'^Thought\s*:\s*', '', meaningful_text, flags=re.IGNORECASE).strip()
+            if meaningful_text and len(meaningful_text) > 20:
+                return AgentFinish(
+                    return_values={"output": meaningful_text},
+                    log=text,
+                )
+
         # ---- Step 4: 尝试从 markdown 代码块中提取命令 ----
         cmd = self._extract_command_from_codeblock(cleaned)
         if cmd:
@@ -110,7 +136,7 @@ class RobustReActParser(ReActSingleInputOutputParser):
         return cleaned if cleaned.strip() else text
 
     def _extract_final_answer(self, text: str) -> Union[str, None]:
-        """宽松匹配 Final Answer"""
+        """宽松匹配 Final Answer，支持多步 PoC 命令（STEP 1/2/3 格式）"""
         # 模式1: 标准 "Final Answer: xxx"
         match = re.search(
             r'Final\s*Answer\s*:\s*(.+)',
@@ -118,15 +144,25 @@ class RobustReActParser(ReActSingleInputOutputParser):
         )
         if match:
             answer = match.group(1).strip()
-            # 截断到下一个 "Thought:" 或 "Action:"（如果有）
+            # 截断到下一个 "Thought:" 或 "Action:"（如果有），但保留 STEP 标记
             for stop in ['Thought:', 'Action:', '\n\nQuestion:']:
                 idx = answer.find(stop)
                 if idx > 0:
                     answer = answer[:idx].strip()
             return answer if answer else None
 
-        # 模式2: 没有 "Final Answer:" 标签，但文本中包含可执行的 exploit 命令
-        # 这是 Inquire Agent 常见的输出模式：分析完后直接给出命令但没加 Final Answer 标签
+        # 模式2: 没有 "Final Answer:" 标签，但文本中包含多步 STEP 格式
+        step_match = re.search(
+            r'(STEP\s+1\s*:.+)',
+            text, re.IGNORECASE | re.DOTALL
+        )
+        if step_match:
+            steps_text = step_match.group(1).strip()
+            # 确保至少包含一个可执行命令
+            if re.search(r'(?:curl|wget|python|ruby|perl|bash|nc|nmap)\s', steps_text, re.IGNORECASE):
+                return steps_text
+
+        # 模式3: 没有 "Final Answer:" 标签，但文本中包含可执行的 exploit 命令
         cmd = self._extract_standalone_exploit_command(text)
         if cmd:
             return cmd
@@ -173,6 +209,15 @@ class RobustReActParser(ReActSingleInputOutputParser):
         """宽松匹配 Action 和 Action Input"""
         action = None
         action_input = None
+
+        # 模式0: 检测 Action: None —— LLM 想结束但不知道用 Final Answer
+        # 此时返回 (None, None) 让调用方走 Final Answer 提取逻辑
+        none_match = re.search(
+            r'Action\s*:\s*None\b',
+            text, re.IGNORECASE
+        )
+        if none_match:
+            return None, None
 
         # 模式1: 标准多行格式
         #   Action: EXECMD
@@ -260,24 +305,68 @@ class RobustReActParser(ReActSingleInputOutputParser):
         """
         从文本中提取独立的 exploit 命令（无 Action/Final Answer 包裹）。
         Inquire Agent 常见问题：LLM 分析完 PoC 后直接输出命令但没加正确格式标签。
+        通用设计：不针对特定漏洞，基于命令模式通用匹配。
         """
-        # 匹配 curl 命令（含多行 -d/-H 参数）
+        candidates = []
+
+        # 1. 匹配 curl 命令（含多行 -d/-H/-X 参数，最常见的 exploit 格式）
         curl_match = re.search(
-            r'(curl\s+(?:(?:-[sSkXHd]|--[a-z-]+)\s+[^\n]*\n?)*(?:-[sSkXHd]|--[a-z-]+)?\s*[^\n]*https?://[^\s]+[^\n]*)',
-            text, re.IGNORECASE
+            r'(curl\s+(?:(?:-[sSkXHdoOLvA]|--[a-z-]+)\s+(?:\'[^\']*\'|"[^"]*"|\S+)\s+)*'
+            r'(?:\'[^\']*\'|"[^"]*"|https?://\S+)'
+            r'(?:\s+(?:-[sSkXHdoOLvA]|--[a-z-]+)\s+(?:\'[^\']*\'|"[^"]*"|\S+))*)',
+            text, re.IGNORECASE | re.DOTALL
         )
         if curl_match:
             cmd = curl_match.group(1).strip()
-            # 确保是一个实际的 curl 命令而非描述文字
             if 'http' in cmd and len(cmd) > 20:
-                return cmd
+                candidates.append(cmd)
 
-        # 匹配 POST/GET HTTP 请求模板（vulhub README 格式）
+        # 2. 匹配 wget 命令
+        wget_match = re.search(
+            r'(wget\s+[^\n]*https?://\S+[^\n]*)',
+            text, re.IGNORECASE
+        )
+        if wget_match:
+            candidates.append(wget_match.group(1).strip())
+
+        # 3. 匹配 python/python3 单行命令
+        py_match = re.search(
+            r'(python[23]?\s+-c\s+(?:\'[^\']*\'|"[^"]*")[^\n]*)',
+            text, re.IGNORECASE
+        )
+        if py_match:
+            candidates.append(py_match.group(1).strip())
+
+        # 4. 匹配 POST/GET HTTP 请求模板（vulhub README 格式）
         http_match = re.search(
-            r'((?:POST|GET|PUT)\s+\S+\s+HTTP/\d\.\d.+?)(?:\n\n[A-Z]|\Z)',
+            r'((?:POST|GET|PUT|DELETE|PATCH)\s+\S+\s+HTTP/\d\.\d.+?)(?:\n\n[A-Z]|\Z)',
             text, re.DOTALL
         )
         if http_match:
-            return http_match.group(1).strip()
+            candidates.append(http_match.group(1).strip())
+
+        # 5. 匹配包含真实 IP 的命令（说明 LLM 已经替换了 target IP）
+        ip_cmd_match = re.search(
+            r'((?:curl|wget|python[23]?|nmap|nc|bash|ruby|perl)\s+[^\n]*\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}[^\n]*)',
+            text, re.IGNORECASE
+        )
+        if ip_cmd_match:
+            cmd = ip_cmd_match.group(1).strip()
+            if len(cmd) > 15:
+                candidates.append(cmd)
+
+        # 选择最长的候选命令（通常更完整）
+        if candidates:
+            return max(candidates, key=len)
+
+        # 6. 匹配 STEP 格式的多步命令（Inquire Agent 的多步 PoC 输出）
+        step_match = re.search(
+            r'(STEP\s+1\s*:.+)',
+            text, re.IGNORECASE | re.DOTALL
+        )
+        if step_match:
+            steps_text = step_match.group(1).strip()
+            if re.search(r'(?:curl|wget|python|ruby|perl|bash|nc|nmap)\s', steps_text, re.IGNORECASE):
+                return steps_text
 
         return None

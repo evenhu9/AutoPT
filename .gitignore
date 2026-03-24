@@ -12,3 +12,6 @@ xray/
 *.txt
 *.pdf
 *.docx
+*.pyc
+*.jsonl
+.agent

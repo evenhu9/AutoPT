@@ -6,7 +6,7 @@ ai:
 local:
   command_timeout: 120
   target_host: 192.168.1.100
-  xray_path: ../../xray/
+  xray_path: ./xray/
 psm:
   debug: true
   draw_graph: false
@@ -21,7 +21,7 @@ test:
   output_path: result
   save_command: true
   save_history: true
-  test_path: ../bench/data.jsonl
+  test_path: ./bench/data.jsonl
 web:
   debug: false
   host: 0.0.0.0

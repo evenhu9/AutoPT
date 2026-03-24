@@ -267,13 +267,14 @@ function renderEnvSkeleton(n = 6) {
 
 function renderEnvCards(envs) {
     return envs.map(env => {
-        const on = env.status === 'running', path = env.compose_file.replace(/'/g, "\\'");
+        const on = env.status === 'running';
+        const encodedPath = encodeURIComponent(env.compose_file);
         return `<div class="env-item ${on ? 'env-running' : ''}"><div class="env-info">
             <div class="env-title-row"><span class="env-status-dot ${on ? 'running' : 'stopped'}"></span><span class="env-name">${env.name}</span></div>
-            <div class="env-path">${env.compose_file}</div></div>
+            <div class="env-path">${escapeHtml(env.compose_file)}</div></div>
             <div class="env-actions">${on
-                ? `<button class="env-btn stop" onclick="stopEnv('${path}')"><i class="ri-stop-fill"></i> 停止</button>`
-                : `<button class="env-btn start" onclick="startEnv('${path}')"><i class="ri-play-fill"></i> 启动</button>`
+                ? `<button class="env-btn stop" data-action="stop" data-compose="${encodedPath}"><i class="ri-stop-fill"></i> 停止</button>`
+                : `<button class="env-btn start" data-action="start" data-compose="${encodedPath}"><i class="ri-play-fill"></i> 启动</button>`
             }</div></div>`;
     }).join('');
 }
@@ -316,6 +317,15 @@ async function loadDockerEnvs() {
     _envCache = res.data;
     grid.innerHTML = renderEnvCards(res.data);
 }
+
+// 事件委托：处理靶机环境启动/停止按钮点击
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-action][data-compose]');
+    if (!btn) return;
+    const composePath = decodeURIComponent(btn.dataset.compose);
+    if (btn.dataset.action === 'start') startEnv(composePath);
+    else if (btn.dataset.action === 'stop') stopEnv(composePath);
+});
 
 async function startEnv(composePath) {
     const infoToast = showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 60000);

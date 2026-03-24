@@ -55,6 +55,8 @@ task_manager = {
     'current_task': None,
     'tasks': [],
     'logs': {},
+    'thread': None,       # 当前运行的后台线程
+    'stop_event': None,   # 用于通知后台线程中断的 Event
 }
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'src', 'config', 'config.yml')
@@ -411,27 +413,33 @@ def start_task():
         'result': None,
     }
 
+    stop_event = threading.Event()
     task_manager['current_task'] = task
     task_manager['tasks'].append(task)
     task_manager['logs'][task_id] = []
+    task_manager['stop_event'] = stop_event
 
     # 在后台线程中运行引擎
-    thread = threading.Thread(target=_run_engine_task, args=(task,), daemon=True)
+    thread = threading.Thread(target=_run_engine_task, args=(task, stop_event), daemon=True)
     thread.start()
+    task_manager['thread'] = thread
 
     return jsonify({'status': 'ok', 'data': task})
 
 
-def _run_engine_task(task):
+def _run_engine_task(task, stop_event):
     """
     后台执行渗透测试任务。
     直接在进程内调用 AutoPT 引擎（原始版本接口）。
     通过 log_callback 实时传递日志到前端。
+    stop_event: threading.Event，外部调用 set() 可中断任务。
     """
     task_id = task['id']
 
     def log_callback(message):
-        """日志回调 - 实时传递到前端"""
+        """日志回调 - 实时传递到前端，同时检查中断信号"""
+        if stop_event.is_set():
+            raise InterruptedError("任务被用户中断")
         timestamp = datetime.now().strftime('%H:%M:%S')
         task_manager['logs'][task_id].append({
             'time': timestamp,
@@ -508,11 +516,30 @@ def _run_engine_task(task):
         flag_emoji = '🎉' if result.get('flag') == 'success' else '❌'
         log_callback(f"[系统] {flag_emoji} 任务完成: {result.get('flag', 'unknown')} | 耗时: {runtime:.1f}s")
 
+    except InterruptedError:
+        task['status'] = 'stopped'
+        task['result'] = 'stopped'
+        task['end_time'] = datetime.now().isoformat()
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        task_manager['logs'][task_id].append({
+            'time': timestamp,
+            'message': '[系统] ⏹ 任务已被用户中断'
+        })
     except Exception as e:
         task['status'] = 'failed'
         task['result'] = 'error'
         task['end_time'] = datetime.now().isoformat()
-        log_callback(f"[错误] 任务执行失败: {str(e)}")
+        # 如果是因为 stop_event 导致的异常，统一标记为 stopped
+        if stop_event.is_set():
+            task['status'] = 'stopped'
+            task['result'] = 'stopped'
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            task_manager['logs'][task_id].append({
+                'time': timestamp,
+                'message': '[系统] ⏹ 任务已被用户中断'
+            })
+        else:
+            log_callback(f"[错误] 任务执行失败: {str(e)}")
 
 
 @app.route('/api/task/status', methods=['GET'])
@@ -521,6 +548,35 @@ def get_task_status():
     if not task:
         return jsonify({'status': 'ok', 'data': None})
     return jsonify({'status': 'ok', 'data': task})
+
+
+@app.route('/api/task/stop', methods=['POST'])
+def stop_task():
+    """中断当前正在运行的渗透测试任务"""
+    task = task_manager['current_task']
+    if not task or task.get('status') != 'running':
+        return jsonify({'status': 'error', 'message': '当前没有正在运行的任务'})
+
+    stop_event = task_manager.get('stop_event')
+    if stop_event:
+        stop_event.set()
+        # 等待线程结束（最多5秒）
+        thread = task_manager.get('thread')
+        if thread and thread.is_alive():
+            thread.join(timeout=5)
+        # 如果线程仍在运行，强制更新状态
+        if task.get('status') == 'running':
+            task['status'] = 'stopped'
+            task['result'] = 'stopped'
+            task['end_time'] = datetime.now().isoformat()
+            task_id = task['id']
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            task_manager['logs'].setdefault(task_id, []).append({
+                'time': timestamp,
+                'message': '[系统] ⏹ 任务已被用户强制中断'
+            })
+        return jsonify({'status': 'ok', 'message': '任务已中断'})
+    return jsonify({'status': 'error', 'message': '无法中断任务'})
 
 
 @app.route('/api/task/logs/<task_id>', methods=['GET'])

@@ -214,6 +214,9 @@ body {
 .btn-primary { background: var(--gradient-blue); color: white; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239,68,68,0.3); }
+.btn-danger:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(239,68,68,0.4); }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .btn-success { background: var(--gradient-green); color: white; }
 .btn-danger { background: var(--gradient-red); color: white; }
 .btn-sm { padding: 6px 12px; font-size: 12px; background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border); }
@@ -377,6 +380,12 @@ select.form-control { cursor: pointer; }
 .log-msg.error { color: var(--accent-red); }
 .log-msg.warning { color: var(--accent-yellow); }
 .log-msg.system { color: var(--accent-cyan); }
+.log-cmd {
+    display: inline-block; margin-top: 4px; padding: 4px 10px; border-radius: 4px;
+    background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15);
+    color: #e2e8f0; font-family: var(--font-mono); font-size: 12px;
+    word-break: break-all; white-space: pre-wrap; max-width: 100%;
+}
 
 /* ===== Docker管理 ===== */
 .docker-header { margin-bottom: 20px; }

@@ -194,18 +194,20 @@ async function startAttack() {
     const res = await apiPost('/api/task/start', { name, ip_addr: ip, model });
     if (res.status === 'ok') {
         currentTaskId = res.data.id;
-        ['系统', `任务 ${currentTaskId} 已启动`], ['系统', `目标: ${name} -> ${ip}`], ['系统', `模型: ${model}`]
-            .forEach ? void 0 : 0;
         addLogLine('系统', `任务 ${currentTaskId} 已启动`, 'system');
         addLogLine('系统', `目标: ${name} -> ${ip}`, 'system');
         addLogLine('系统', `模型: ${model}`, 'system');
         $('statusDot').style.background = 'var(--accent-blue)';
         $('statusText').textContent = '测试中';
+        // 按钮变为停止状态
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ri-stop-circle-line"></i> 停止测试';
+        btn.classList.add('btn-danger');
+        btn.onclick = stopAttack;
         startLogPolling();
     } else {
         addLogLine('错误', res.message, 'error');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ri-rocket-line"></i> 启动渗透测试';
+        resetAttackBtn();
         badge.className = 'task-badge';
         badge.textContent = '错误';
     }
@@ -215,7 +217,15 @@ function addLogLine(time, message, type = '') {
     const container = $('logContainer');
     const line = document.createElement('div');
     line.className = 'log-line';
-    line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type}">${escapeHtml(message)}</span>`;
+    // 如果日志是执行命令，给命令内容加特殊样式
+    if (message.includes('] 执行命令:')) {
+        const parts = message.split('] 执行命令:');
+        const prefix = parts[0] + '] 执行命令:';
+        const cmd = parts.slice(1).join('] 执行命令:');
+        line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type || 'system'}">${escapeHtml(prefix)}</span><code class="log-cmd">${escapeHtml(cmd.trim())}</code>`;
+    } else {
+        line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type}">${escapeHtml(message)}</span>`;
+    }
     container.appendChild(line);
     container.scrollTop = container.scrollHeight;
 }
@@ -243,17 +253,44 @@ async function pollLogs() {
     if (statusRes.status === 'ok' && statusRes.data && statusRes.data.status !== 'running') {
         clearInterval(logPollTimer);
         logPollTimer = null;
-        const btn = $('startAttackBtn');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="ri-rocket-line"></i> 启动渗透测试';
+        resetAttackBtn();
         const badge = $('taskBadge');
+        const st = statusRes.data.status;
         const ok = statusRes.data.result === 'success';
-        badge.className = `task-badge ${ok ? 'success' : 'failed'}`;
-        badge.textContent = ok ? '成功' : '失败';
-        addLogLine('系统', ok ? '🎉 渗透测试成功！' : '❌ 渗透测试未成功', ok ? 'system' : 'error');
+        const stopped = st === 'stopped' || statusRes.data.result === 'stopped';
+        if (stopped) {
+            badge.className = 'task-badge';
+            badge.textContent = '已停止';
+            addLogLine('系统', '⏹ 测试已被用户中断', 'warning');
+        } else {
+            badge.className = `task-badge ${ok ? 'success' : 'failed'}`;
+            badge.textContent = ok ? '成功' : '失败';
+            addLogLine('系统', ok ? '🎉 渗透测试成功！' : '❌ 渗透测试未成功', ok ? 'system' : 'error');
+        }
         $('statusDot').style.background = 'var(--accent-green)';
         $('statusText').textContent = '就绪';
     }
+}
+
+async function stopAttack() {
+    const btn = $('startAttackBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> 正在停止...';
+    const res = await apiPost('/api/task/stop', {});
+    if (res.status === 'ok') {
+        addLogLine('系统', '⏹ 正在中断测试进程...', 'warning');
+    } else {
+        showToast(res.message || '停止失败', 'error', '操作失败');
+    }
+    // pollLogs 会在检测到状态变化后自动恢复按钮
+}
+
+function resetAttackBtn() {
+    const btn = $('startAttackBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ri-rocket-line"></i> 启动渗透测试';
+    btn.classList.remove('btn-danger');
+    btn.onclick = startAttack;
 }
 
 // ==================== Docker管理 ====================

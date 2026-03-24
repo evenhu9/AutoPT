@@ -318,8 +318,9 @@ async function loadDockerEnvs() {
 }
 
 async function startEnv(composePath) {
-    showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 10000);
+    const infoToast = showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 60000);
     const res = await apiPost('/api/docker/start', { compose_file: composePath });
+    dismissToast(infoToast);
     if (res.status === 'ok') {
         showToast(res.message || '环境启动成功', 'success', '靶机已启动');
     } else {
@@ -332,8 +333,9 @@ async function startEnv(composePath) {
 
 async function stopEnv(composePath) {
     if (!await showConfirm('确定要停止这个靶机环境吗？所有相关容器和卷将被移除。', '停止靶机')) return;
-    showToast('正在停止靶机环境...', 'info', '停止中', 6000);
+    const infoToast = showToast('正在停止靶机环境...', 'info', '停止中', 60000);
     const res = await apiPost('/api/docker/stop', { compose_file: composePath });
+    dismissToast(infoToast);
     showToast(res.message || (res.status === 'ok' ? '环境已停止' : '停止失败'), res.status === 'ok' ? 'success' : 'error', res.status === 'ok' ? '靶机已停止' : '操作失败');
     refreshDocker();
 }
@@ -492,6 +494,7 @@ function showToast(message, type = 'success', title = '', duration = 4000) {
     c.appendChild(toast);
     setTimeout(() => dismissToast(toast), duration);
     while (c.children.length > 5) dismissToast(c.children[0]);
+    return toast;
 }
 
 function dismissToast(t) { if (!t || t.classList.contains('toast-exit')) return; t.classList.add('toast-exit'); setTimeout(() => t.remove(), 300); }

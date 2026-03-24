@@ -68,26 +68,31 @@ class AutoPT:
 
     def llm_init(self, config: dict, model_name: str) -> BaseChatModel:
         self._emit_log(f"[引擎] 初始化LLM模型: {model_name}")
+
+        # 将 output_path 转为基于 src/ 目录的绝对路径，确保无论从哪个工作目录调用都能正确写入
+        src_dir = os.path.dirname(os.path.abspath(__file__))
+        output_base = os.path.join(src_dir, config['test']['output_path'])
+
         if 'gpt4omini' == model_name:
             model = "gpt-4o-mini-2024-07-18"
-            res_name = f"{config['test']['output_path']}/4omini/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+            res_name = f"{output_base}/4omini/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'gpt4o' == model_name:
             model = "gpt-4o"
-            res_name = f"{config['test']['output_path']}/4o/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+            res_name = f"{output_base}/4o/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'llama31' == model_name:
             model = "meta/llama-3.1-70b-instruct"
-            res_name = f"{config['test']['output_path']}/llama31/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+            res_name = f"{output_base}/llama31/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'claude35' == model_name:
             model = "claude-3-5-sonnet-20240620"
-            res_name = f"{config['test']['output_path']}/claude35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+            res_name = f"{output_base}/claude35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         elif 'gpt35turbo' == model_name:
             model = "gpt-3.5-turbo-0125"
-            res_name = f"{config['test']['output_path']}/35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
+            res_name = f"{output_base}/35/{self.pname.replace('/', '_')}_{model_name}_FSM.jsonl"
         else:
             # 自定义模型名直接传递给 OpenAI 兼容 API
             model = model_name
             safe_name = model_name.replace('/', '_').replace(':', '_')
-            res_name = f"{config['test']['output_path']}/custom/{self.pname.replace('/', '_')}_{safe_name}_FSM.jsonl"
+            res_name = f"{output_base}/custom/{self.pname.replace('/', '_')}_{safe_name}_FSM.jsonl"
 
         if 'llama31' == model_name:
             llm = ChatNVIDIA(temperature=config['ai']['temperature'], model=model, api_key=config['ai']['nvidia_key'])

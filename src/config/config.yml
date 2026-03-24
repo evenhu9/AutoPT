@@ -6,16 +6,17 @@ ai:
 local:
   command_timeout: 120
   target_host: 192.168.1.100
-  xray_path: ../../xray/xray
+  xray_path: ../../xray/
 psm:
   debug: true
   draw_graph: false
-  exp_iterations: 8
+  exp_iterations: 5
   query_iterations: 3
   scan_iterations: 5
   sys_iterations: 20
 test:
   models:
+  - gpt-3.5-turbo
   - gpt4omini
   output_path: result
   save_command: true

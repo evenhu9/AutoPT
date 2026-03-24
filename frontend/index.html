@@ -286,32 +286,78 @@
 
             <!-- ======== 测试报告页面 ======== -->
             <section class="page" id="page-results">
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="ri-file-list-3-line"></i> 测试历史记录</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-container">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="resultBody">
-                                    <tr><td colspan="5" class="table-empty">暂无测试记录</td></tr>
-                                </tbody>
-                            </table>
+                <div class="history-panel">
+                    <!-- 测试历史记录表格 -->
+                    <div class="card history-table-card">
+                        <div class="card-header">
+                            <h3><i class="ri-file-list-3-line"></i> 测试历史记录</h3>
+                            <span class="history-count-badge" id="historyCountBadge">0 条</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container" id="historyTableContainer">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resultBody">
+                                        <tr><td colspan="5" class="table-empty">暂无测试记录</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="card">
+
+                <!-- 数据分析模块 -->
+                <div class="card analytics-card">
                     <div class="card-header">
-                        <h3><i class="ri-history-line"></i> 近期任务</h3>
+                        <h3><i class="ri-bar-chart-grouped-line"></i> 数据分析</h3>
                     </div>
                     <div class="card-body">
-                        <div class="task-timeline" id="taskTimeline">
-                            <div class="timeline-empty">暂无任务记录</div>
+                        <div class="analytics-grid">
+                            <!-- 汇总指标卡片 -->
+                            <div class="analytics-summary">
+                                <div class="summary-item">
+                                    <div class="summary-icon success"><i class="ri-checkbox-circle-line"></i></div>
+                                    <div class="summary-info">
+                                        <span class="summary-value" id="analyticSuccess">0</span>
+                                        <span class="summary-label">成功</span>
+                                    </div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-icon failed"><i class="ri-close-circle-line"></i></div>
+                                    <div class="summary-info">
+                                        <span class="summary-value" id="analyticFailed">0</span>
+                                        <span class="summary-label">失败</span>
+                                    </div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-icon rate"><i class="ri-percent-line"></i></div>
+                                    <div class="summary-info">
+                                        <span class="summary-value" id="analyticRate">0%</span>
+                                        <span class="summary-label">成功率</span>
+                                    </div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-icon time"><i class="ri-timer-line"></i></div>
+                                    <div class="summary-info">
+                                        <span class="summary-value" id="analyticAvgTime">0s</span>
+                                        <span class="summary-label">平均耗时</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 漏洞类型分布 -->
+                            <div class="analytics-chart-section">
+                                <h4 class="chart-title"><i class="ri-pie-chart-line"></i> 漏洞类型分布</h4>
+                                <div class="chart-bars" id="typeDistChart"></div>
+                            </div>
+                            <!-- 测试结果趋势 -->
+                            <div class="analytics-chart-section">
+                                <h4 class="chart-title"><i class="ri-line-chart-line"></i> 测试结果趋势</h4>
+                                <div class="trend-chart" id="trendChart"></div>
+                            </div>
                         </div>
                     </div>
                 </div>

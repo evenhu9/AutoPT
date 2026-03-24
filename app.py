@@ -254,17 +254,65 @@ def list_docker_envs():
     bench_dir = os.path.join(os.path.dirname(__file__), 'bench')
     envs = []
 
+    # 一次性获取运行中的容器（含 Labels 用于精确匹配 compose 项目）
+    running_containers = []
+    try:
+        result = subprocess.run(
+            ['docker', 'ps', '--format', '{{json .}}'],
+            capture_output=True, encoding='utf-8', timeout=10
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    try:
+                        running_containers.append(json.loads(line))
+                    except:
+                        pass
+    except:
+        pass
+
     for root, dirs, files in os.walk(bench_dir):
         for f in files:
             if f in ('docker-compose.yml', 'docker-compose.yaml'):
                 rel_path = os.path.relpath(root, bench_dir)
+                compose_file = os.path.join(root, f)
+                env_name = rel_path.replace(os.sep, '/')
+
+                # 纯内存匹配，不再调用子进程
+                status = _detect_env_status(compose_file, root, running_containers, [])
+
                 envs.append({
                     'path': rel_path,
-                    'compose_file': os.path.join(root, f),
-                    'name': rel_path.replace(os.sep, '/'),
+                    'compose_file': compose_file,
+                    'name': env_name,
+                    'status': status,
                 })
 
     return jsonify({'status': 'ok', 'data': envs})
+
+
+def _detect_env_status(compose_file, compose_dir, running_containers, all_containers):
+    """
+    检测 docker-compose 环境的运行状态（纯内存匹配，无子进程调用）。
+    通过 compose 项目名 / compose 目录名匹配已运行的容器。
+    返回: 'running' | 'stopped'
+    """
+    # docker compose 默认项目名 = 目录名（小写，去掉 - 和 _）
+    dir_name = os.path.basename(compose_dir).lower()
+    project_name = dir_name.replace('-', '').replace('_', '')
+
+    for c in running_containers:
+        # 匹配容器名（docker compose 容器名通常含项目名）
+        container_name = (c.get('Names', '') or '').lower()
+        if project_name and project_name in container_name.replace('-', '').replace('_', ''):
+            return 'running'
+
+        # 匹配 Labels 中的 com.docker.compose.project（更精确）
+        labels = c.get('Labels', '') or ''
+        if f'com.docker.compose.project={dir_name}' in labels:
+            return 'running'
+
+    return 'stopped'
 
 
 @app.route('/api/docker/start', methods=['POST'])

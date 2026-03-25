@@ -217,12 +217,10 @@ function addLogLine(time, message, type = '') {
     const container = $('logContainer');
     const line = document.createElement('div');
     line.className = 'log-line';
-    // 如果日志是执行命令，给命令内容加特殊样式
-    if (message.includes('] 执行命令:')) {
-        const parts = message.split('] 执行命令:');
-        const prefix = parts[0] + '] 执行命令:';
-        const cmd = parts.slice(1).join('] 执行命令:');
-        line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type || 'system'}">${escapeHtml(prefix)}</span><code class="log-cmd">${escapeHtml(cmd.trim())}</code>`;
+    // 如果日志是执行命令（来自terminal.py格式化后的完整命令），给命令内容加特殊样式
+    if (message.startsWith('[执行命令] $ ')) {
+        const cmd = message.substring('[执行命令] $ '.length);
+        line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg system">[执行命令]</span><code class="log-cmd">$ ${escapeHtml(cmd)}</code>`;
     } else {
         line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg ${type}">${escapeHtml(message)}</span>`;
     }

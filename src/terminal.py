@@ -144,10 +144,10 @@ class InteractiveShell:
         # curl 命令中单引号包裹的 JSON 数据转换为双引号 + 转义格式
         # 确保在所有平台（尤其是 Windows）上 JSON 报文能被正确解析
         if "curl" in command:
-            original_cmd = command
             command = self._format_curl_json(command)
-            if command != original_cmd:
-                self._emit_log(f"[格式化] curl JSON 已转换为双引号格式: {command[:200]}{'...' if len(command) > 200 else ''}")
+        
+        # 输出格式化后的完整命令
+        self._emit_log(f"[执行命令] $ {command}")
         
         # 根据模式执行
         if self.local_mode:

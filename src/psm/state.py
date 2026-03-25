@@ -361,7 +361,7 @@ When you fail after multiple attempts, respond with:
                 tool_name = i[0].tool
                 tool_input = i[0].tool_input
                 raw_tool_output = str(i[1])
-                self._emit_log(f"[{sname}] 执行命令: {tool_input}" if tool_name == "EXECMD" else (f"[{sname}] 调用工具: {tool_name}({tool_input[:120]}...)" if len(str(tool_input)) > 120 else f"[{sname}] 调用工具: {tool_name}({tool_input})"))
+                self._emit_log(f"[{sname}] 调用工具: EXECMD" if tool_name == "EXECMD" else (f"[{sname}] 调用工具: {tool_name}({tool_input[:120]}...)" if len(str(tool_input)) > 120 else f"[{sname}] 调用工具: {tool_name}({tool_input})"))
                 if tool_name == "EXECMD" and sname in self.raw_outputs:
                     if self.raw_outputs[sname]:
                         self.raw_outputs[sname] += "\n" + raw_tool_output

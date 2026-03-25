@@ -10,10 +10,10 @@ local:
 psm:
   debug: true
   draw_graph: false
-  exp_iterations: 5
+  exp_iterations: 12
   query_iterations: 3
   scan_iterations: 5
-  sys_iterations: 20
+  sys_iterations: 30
 test:
   models:
   - gpt-3.5-turbo

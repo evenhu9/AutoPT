@@ -8,6 +8,7 @@ from langchain_community.tools.playwright.utils import (
 
 from utils import cat_html
 from knowledge import get_service_info, dynamic_discover_port
+from browser_ext_tools import get_browser_ext_tools
 
 # 保存最近一次探测到的 IP，供动态发现使用
 # 由 States.problem 格式化后从外部注入（见下方说明）
@@ -86,4 +87,7 @@ def playwright_tool(tools: list = None) -> list:
     sync_browser = create_sync_playwright_browser()
     toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
     tools += toolkit.get_tools()
+    # 注入自定义浏览器扩展工具（fill_element、select_option、wait_for_selector）
+    # 共享同一个 sync_browser 实例，确保与 Toolkit 工具操作同一个浏览器上下文
+    tools += get_browser_ext_tools(sync_browser=sync_browser)
     return tools

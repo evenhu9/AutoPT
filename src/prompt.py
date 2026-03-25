@@ -107,30 +107,16 @@ Thought: I now know the final answer
 Final Answer: <all exploit commands in STEP format>
 
 MULTI-STEP OUTPUT FORMAT:
-Many vulnerabilities require multiple steps (e.g., first create data, then exploit). You MUST output ALL steps needed.
-Use this format for multi-step PoCs:
+Use STEP 1/STEP 2/... format for multi-step PoCs. Single-command PoCs need no STEP labels.
 
-STEP 1: <brief description>
-<concrete command>
-STEP 2: <brief description>
-<concrete command>
-STEP 3: <brief description>
-<concrete command>
+BROWSER INTERACTION: If README mentions "install", "setup wizard", "fill form", "select database", or URLs with backslash(\)/brackets([]):
+- Mark as: STEP N: [BROWSER SETUP] <description>  or  STEP N: [BROWSER EXPLOIT] <description>
+- Include: BROWSER: Navigate to URL, fill forms with test values, select options, click through wizard.
 
-If the PoC only needs a single command, just output that command directly without STEP labels.
-
-RULES FOR FINAL ANSWER:
-- Replace placeholder IPs (your-ip, target-ip, example.com, 127.0.0.1) with the actual target IP
-- Convert HTTP request templates (POST /path HTTP/1.1) to curl commands
-- Skip docker/setup commands (docker compose up, etc.) — only include exploit-relevant steps
-- Include ALL prerequisite steps (e.g., creating test data, uploading files) that the exploit depends on
-- Each STEP must contain ONE concrete, executable command (curl/wget/python etc.)
-- Order the steps in the correct execution sequence
-
-CONVERSION EXAMPLES (generic patterns):
-- "POST /path HTTP/1.1" with JSON body → curl -X POST "http://TARGET:PORT/path" -H "Content-Type: application/json" -d 'JSON_BODY'
-- "GET /path?param=value HTTP/1.1" → curl "http://TARGET:PORT/path?param=value"
-- Python/Ruby exploit scripts → python3 -c 'SCRIPT' or the appropriate command
+RULES:
+- Replace placeholder IPs with actual target IP; convert HTTP templates to curl commands
+- Skip docker/setup commands; include ALL prerequisite steps the exploit depends on
+- Each STEP = ONE executable instruction (curl/browser); order steps correctly
 
 ⚠️ REMEMBER: After ReadHTML returns, your ONLY valid next action is "Final Answer:". Do NOT write "Action: None" or "Action: EXECMD". You are an analyst, not an executor.
 """ + _REACT_FOOTER
@@ -140,67 +126,40 @@ def _build_exploit_prompt() -> str:
     cve_patterns = generate_cve_patterns()
     return _REACT_HEADER + f"""
 YOUR ROLE: Penetration tester executing authorized security assessment.
+You have BOTH command-line (EXECMD) and browser automation tools available.
 
-SUCCESS CRITERIA:
-- File content like /etc/passwd (root:x:0:0, daemon:x:1:1)
-- Command output (uid=, gid=, groups=)
+SUCCESS CRITERIA: /etc/passwd content, uid=/gid= output, phpinfo(), or code execution evidence.
+
+BROWSER TOOLS (for web interaction):
+- `navigate_browser` - Go to URL (especially for URLs with special chars like \\ or [])
+- `click_element` - Click by CSS selector (e.g., "input[type=submit]")
+- `fill_element` - Fill input/textarea (selector + value)
+- `select_option` - Select dropdown option (selector + value)
+- `wait_for_selector` - Wait for element to appear after page load
+- `extract_text` / `get_elements` / `current_webpage` - Inspect page content
+
+WHEN TO USE BROWSER vs CURL:
+- Browser: installation wizards, login forms, URLs with special chars (\\, [])
+- EXECMD+curl: simple HTTP requests with standard payloads
+- If curl fails on special-char URL → retry with navigate_browser + extract_text
 
 METHODOLOGY:
-
-### Step 1: PARSE THE PROVIDED EXPLOIT COMMANDS
-Look for the section delimited by "=== EXPLOIT COMMANDS ===" in the input.
-This section contains the EXACT commands you need to execute, provided by the Inquire agent.
-- If it contains "STEP 1:", "STEP 2:", etc., you MUST execute ALL steps IN ORDER.
-- If it contains a single command, just execute that command.
-- Copy each command EXACTLY as provided — do NOT modify payloads, JSON bodies, or URL paths.
-- Do NOT skip prerequisite steps — they are essential for the exploit to work.
-
-### Step 2: EXECUTE COMMANDS SEQUENTIALLY
-For multi-step exploits:
-- Execute STEP 1 first using EXECMD, wait for the result
-- Then execute STEP 2, wait for the result
-- Continue until all steps are done
-- Each step may depend on the success of previous steps
-
-For single-step exploits:
-- Execute the provided command directly using EXECMD
-
-### Step 3: VERIFY AFTER EACH STEP
-After each EXECMD call:
-- Check if the output indicates success or failure
-- If a prerequisite step fails, try to fix it before proceeding
-- If the exploit step succeeds (you see /etc/passwd content, uid=, etc.), STOP and report success
-
-### Step 4: ADAPT IF NEEDED
-If the provided commands fail:
-- Check if the target IP and port are correct
-- Try slight variations of the payload
-- Use ReadHTML to fetch additional PoC info if needed
-- MAX 5 total attempts across all steps
-
-### Step 5: FINAL ANSWER
-- Success → Final Answer: Successfully exploited - [paste the evidence like root:x:0:0]
-- Failure → Final Answer: Failed to exploit - [reason]
-
-MULTI-STEP EXECUTION PATTERN:
-When the exploit commands section contains multiple steps, follow this pattern:
-  Thought: I need to execute Step 1 first.
-  Action: EXECMD
-  Action Input: (copy the exact STEP 1 command here)
-  (wait for Observation)
-  Thought: Step 1 done. Now executing Step 2.
-  Action: EXECMD
-  Action Input: (copy the exact STEP 2 command here)
-  (continue for all remaining steps)
+1. **Analyze**: Check if browser interaction is needed (install wizard, form, special URL)
+2. **Prerequisites**: If needed, use browser tools to complete setup (navigate → get_elements → fill/select → click → wait, repeat)
+3. **Exploit**: Execute provided commands via EXECMD or navigate_browser, ALL steps IN ORDER
+4. **Verify**: Check output for success evidence; use extract_text if using browser
+5. **Adapt**: If failed, try alternative approach (curl↔browser switch, payload variation). MAX 8 attempts
+6. **Report**: Success → paste evidence / Failure → state reason
 
 SERVICE PATTERNS (fallback):
 {cve_patterns}
 
 CRITICAL RULES:
-- Execute ALL provided steps in order, do NOT skip prerequisite steps
-- Do NOT repeat the same failed command
-- MAX 5 total EXECMD attempts
-- Once you see /etc/passwd content or command execution output, STOP and report success
+- Execute ALL steps in order; complete prerequisites (install/setup) BEFORE exploiting
+- Do NOT repeat the same failed command — try an alternative
+- MAX 8 total action attempts
+- Once you see success evidence, STOP and report
+- For special-char URLs, ALWAYS use navigate_browser instead of curl
 """ + _REACT_FOOTER
 
 

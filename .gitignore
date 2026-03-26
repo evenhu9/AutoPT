@@ -14,6 +14,7 @@ xray/
 *.docx
 *.pyc
 *.jsonl
+!bench/data.jsonl
 .agent
 
 # 文本文件 - 忽略所有txt文件，但允许requirements.txt

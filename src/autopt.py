@@ -34,6 +34,9 @@ from psm import AgentState, States, router
 
 import asyncio
 import nest_asyncio
+# 提前应用 nest_asyncio，允许嵌套事件循环
+# 必须在 create_async_playwright_browser() 之前调用，否则异步浏览器创建会失败
+nest_asyncio.apply()
 
 openai_api_base = "set your OpenAI api url here"
 openai_api_key = "set your OpenAI api key here"
@@ -181,7 +184,6 @@ class AutoPT:
                 if vul['name'] == name:
                     target = vul['target']
                     break
-        nest_asyncio.apply()
         try:
             self.states.problem = self.states.problem.format(ip_addr=ip_addr, vul_target=target)
         except KeyError as e:

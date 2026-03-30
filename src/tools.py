@@ -47,9 +47,13 @@ def playwright_tool(tools: list = None) -> list:
     if tools is None:
         tools = []
     sync_browser = create_sync_playwright_browser()
-    toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
+    async_browser = create_async_playwright_browser()
+    toolkit = PlayWrightBrowserToolkit.from_browser(
+        sync_browser=sync_browser,
+        async_browser=async_browser
+    )
     tools += toolkit.get_tools()
     # 注入自定义浏览器扩展工具（fill_element、select_option、wait_for_selector）
-    # 共享同一个 sync_browser 实例，确保与 Toolkit 工具操作同一个浏览器上下文
-    tools += get_browser_ext_tools(sync_browser=sync_browser)
+    # 共享同一个 sync_browser + async_browser 实例，确保与 Toolkit 工具操作同一个浏览器上下文
+    tools += get_browser_ext_tools(sync_browser=sync_browser, async_browser=async_browser)
     return tools

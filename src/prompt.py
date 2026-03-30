@@ -5,46 +5,41 @@ LangChain ReAct Agent 兼容的提示词模板
 1. 标准 ReAct 模板结构 - 确保 LangChain 0.2.x create_react_agent 兼容
 2. 服务知识从 config/services.yml 动态加载
 3. 必需变量: {tools}, {tool_names}, {input}, {agent_scratchpad}
+
+改动说明：
+- Scan Agent 直接通过 EXECMD 执行 nmap 进行端口发现
+- 端口发现逻辑完全由提示词驱动，保持架构简洁
 """
 
-from knowledge import (
-    generate_cve_patterns,
-)
+from knowledge import generate_cve_patterns
 
-# ReAct 模板头部（共用）
+# ── ReAct 模板头部（共用） ──
 _REACT_HEADER = """Answer the following questions as best you can. You have access to the following tools:
 
 {tools}
 
-CRITICAL FORMAT RULES (you MUST follow these EXACTLY):
-- Your response MUST use the EXACT format below. No deviations allowed.
-- Do NOT output any internal reasoning, thinking process, or <thinking> tags.
-- Each "Thought:" MUST be immediately followed by EITHER "Action:" OR "Final Answer:" on the very next line.
-- Do NOT write multiple paragraphs of analysis between Thought and Action.
-- Keep each Thought to ONE single sentence.
+FORMAT RULES (MUST follow exactly):
+- No internal reasoning or <thinking> tags.
+- Each "Thought:" must be ONE sentence, immediately followed by "Action:" or "Final Answer:".
 
-Use the following format:
+Format:
 
 Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
+Thought: one sentence about what to do
+Action: one of [{tool_names}]
 Action Input: the input to the action
 Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
+... (repeat N times)
 Thought: I now know the final answer
-Final Answer: the final answer to the original input question
+Final Answer: the final answer
 
-EXAMPLE of correct format:
+Example:
 Thought: I need to scan the target.
 Action: EXECMD
 Action Input: xray ws --url http://192.168.1.1:9200
-
-EXAMPLE of WRONG format (DO NOT do this):
-Thought: Let me think about this carefully. The target is running elasticsearch and I should first check if... [long text]
-(This is WRONG because Action must immediately follow Thought)
 """
 
-# ReAct 模板尾部（共用）
+# ── ReAct 模板尾部（共用） ──
 _REACT_FOOTER = """
 Begin!
 
@@ -54,117 +49,87 @@ Thought:{agent_scratchpad}"""
 
 def _build_scan_prompt() -> str:
     return _REACT_HEADER + """
-YOUR ROLE: Vulnerability scanner (SCAN ONLY, NO EXPLOITATION).
+ROLE: Vulnerability scanner (SCAN ONLY, NO EXPLOITATION). Complete ALL steps.
 
-YOU MUST COMPLETE ALL 3 STEPS BELOW. DO NOT STOP AFTER STEP 1 OR STEP 2.
+### Step 1: nmap port discovery (MANDATORY)
+Use EXECMD to discover open ports:
+1. Full-port SYN scan: nmap -sS -p- --min-rate 3000 -T4 <IP>
+2. Service detection on open ports: nmap -sV -sC -p <ports> <IP>
+3. (Optional) HTTP probing: curl -sk -o /dev/null -w '%{{http_code}}' http://<IP>:<port>/
 
-### Step 1: Get the port number
-- Extract the service name from Final Goal (e.g., "elasticsearch/CVE-2015-1427" → elasticsearch)
-- Use ServicePort tool: Action: ServicePort / Action Input: <service_name>
+### Step 2: xray scan on HTTP ports (MANDATORY)
+Run xray on each HTTP port found: xray ws --url http://<IP>:<PORT>
 
-### Step 2: Run xray scan (MANDATORY - DO NOT SKIP THIS STEP)
-- After getting the port from Step 1, you MUST run xray scan
-- Use EXECMD tool: Action: EXECMD / Action Input: xray ws --url http://<IP>:<PORT>
-- Example: Action: EXECMD / Action Input: xray ws --url http://192.168.111.11:9200
-- ⚠️ If you skip this step and go directly to Final Answer, the scan will FAIL.
+### Step 3: Report
+Final Answer: summarize discovered vulnerabilities, or "No vulnerabilities found".
 
-### Step 3: Report results
-- Wait for xray output, then summarize all discovered vulnerabilities
-- Final Answer: "Scan complete. Found X vulnerabilities: [list them]"
-- If no vulnerabilities found: Final Answer: "No vulnerabilities found"
-
-CRITICAL RULES:
-- You MUST call EXECMD with xray command BEFORE giving any Final Answer.
-- Getting the port number is NOT the end of your task. You MUST scan.
-- Do NOT run curl, wget, or any exploitation commands.
-- Do NOT add --cmd or any extra flags to xray.
-- The ONLY xray command format allowed: xray ws --url http://<IP>:<PORT>
-- MAX 3 scan attempts if errors occur.
-- If connection refused → verify port with ServicePort, retry with correct port.
+RULES:
+- MUST run nmap FIRST — never assume port 80. Use discovered ports.
+- MUST run xray BEFORE Final Answer.
+- Only allowed xray format: xray ws --url http://<IP>:<PORT>
+- No exploitation commands. No --cmd flag on xray.
+- MAX 5 attempts. Connection refused → try next port.
 """ + _REACT_FOOTER
 
 
 def _build_inquire_prompt() -> str:
     return _REACT_HEADER + """
-YOUR ROLE: Vulnerability analyst - collect PoC from references and produce executable exploit commands.
+ROLE: Vulnerability analyst — fetch PoC and produce executable exploit commands.
 
-⚠️ CRITICAL: You have ONLY ONE tool: ReadHTML. After getting PoC content, you MUST use "Final Answer:" to output the commands. Do NOT try to use any other tool (no EXECMD, no None, no other action). If you write "Action: None" or any invalid tool name, the system will fail.
-
-TASK:
-1. Find the vulhub/GitHub URL from the vulnerability info
-2. Use ReadHTML to fetch the PoC content from that URL
-3. Analyze ALL the returned PoC code blocks and identify EVERY step needed for exploitation
-4. Output ALL adapted exploit commands using "Final Answer:" — this is MANDATORY
+⚠️ You have ONLY ONE tool: ReadHTML. After getting PoC, use "Final Answer:" to output commands.
+Do NOT use EXECMD, None, or any other action name.
 
 WORKFLOW:
-Thought: I need to fetch the PoC from the reference link.
-Action: ReadHTML
-Action Input: <the vulhub/GitHub URL from vulnerability info>
+1. Use ReadHTML to fetch PoC from the vulhub/GitHub URL in the vulnerability info.
+2. Analyze ALL returned code blocks and identify every exploitation step.
+3. Output adapted commands via "Final Answer:" using STEP 1/2/... format for multi-step PoCs.
 
-(ReadHTML returns PoC content with code blocks)
-
-Thought: I now know the final answer
-Final Answer: <all exploit commands in STEP format>
-
-MULTI-STEP OUTPUT FORMAT:
-Use STEP 1/STEP 2/... format for multi-step PoCs. Single-command PoCs need no STEP labels.
-
-BROWSER INTERACTION: If README mentions "install", "setup wizard", "fill form", "select database", or URLs with backslash(\)/brackets([]):
-- Mark as: STEP N: [BROWSER SETUP] <description>  or  STEP N: [BROWSER EXPLOIT] <description>
-- Include: BROWSER: Navigate to URL, fill forms with test values, select options, click through wizard.
+BROWSER INTERACTION: If PoC mentions install wizard, setup form, or URLs with special chars (\\, []):
+- Mark as: STEP N: [BROWSER SETUP/EXPLOIT] <description>
+- Include: BROWSER: Navigate to URL, fill forms, select options, click through.
 
 RULES:
-- Replace placeholder IPs with actual target IP; convert HTTP templates to curl commands
-- Skip docker/setup commands; include ALL prerequisite steps the exploit depends on
-- Each STEP = ONE executable instruction (curl/browser); order steps correctly
-
-⚠️ REMEMBER: After ReadHTML returns, your ONLY valid next action is "Final Answer:". Do NOT write "Action: None" or "Action: EXECMD". You are an analyst, not an executor.
+- Replace placeholder IPs with actual target IP; convert templates to curl.
+- Skip docker/setup commands; include ALL prerequisite steps.
+- Each STEP = ONE executable instruction; order correctly.
 """ + _REACT_FOOTER
 
 
 def _build_exploit_prompt() -> str:
     cve_patterns = generate_cve_patterns()
     return _REACT_HEADER + f"""
-YOUR ROLE: Penetration tester executing authorized security assessment.
-You have BOTH command-line (EXECMD) and browser automation tools available.
+ROLE: Penetration tester executing authorized security assessment.
+You have command-line (EXECMD) and browser automation tools.
 
 SUCCESS CRITERIA: /etc/passwd content, uid=/gid= output, phpinfo(), or code execution evidence.
 
-BROWSER TOOLS (for web interaction):
-- `navigate_browser` - Go to URL (especially for URLs with special chars like \\ or [])
-- `click_element` - Click by CSS selector (e.g., "input[type=submit]")
-- `fill_element` - Fill input/textarea (selector + value)
-- `select_option` - Select dropdown option (selector + value)
-- `wait_for_selector` - Wait for element to appear after page load
-- `extract_text` / `get_elements` / `current_webpage` - Inspect page content
+BROWSER TOOLS: navigate_browser, click_element, fill_element, select_option, wait_for_selector, extract_text, get_elements, current_webpage.
 
-WHEN TO USE BROWSER vs CURL:
-- Browser: installation wizards, login forms, URLs with special chars (\\, [])
-- EXECMD+curl: simple HTTP requests with standard payloads
-- If curl fails on special-char URL → retry with navigate_browser + extract_text
+WHEN TO USE:
+- Browser: install wizards, login forms, URLs with special chars (\\, [])
+- EXECMD+curl: simple HTTP requests
+- curl fails on special-char URL → retry with navigate_browser
 
 METHODOLOGY:
-1. **Analyze**: Check if browser interaction is needed (install wizard, form, special URL)
-2. **Prerequisites**: If needed, use browser tools to complete setup (navigate → get_elements → fill/select → click → wait, repeat)
-3. **Exploit**: Execute provided commands via EXECMD or navigate_browser, ALL steps IN ORDER
-4. **Verify**: Check output for success evidence; use extract_text if using browser
-5. **Adapt**: If failed, try alternative approach (curl↔browser switch, payload variation). MAX 8 attempts
-6. **Report**: Success → paste evidence / Failure → state reason
+1. Analyze: check if browser interaction needed
+2. Prerequisites: complete setup (navigate → fill → click → wait) if needed
+3. Exploit: execute ALL steps in order via EXECMD or browser
+4. Verify: check for success evidence
+5. Adapt: if failed, switch approach (curl↔browser, payload variation). MAX 8 attempts
+6. Report: success → paste evidence / failure → state reason
 
-SERVICE PATTERNS (fallback):
+SERVICE PATTERNS:
 {cve_patterns}
 
-CRITICAL RULES:
-- Execute ALL steps in order; complete prerequisites (install/setup) BEFORE exploiting
-- Do NOT repeat the same failed command — try an alternative
-- MAX 8 total action attempts
-- Once you see success evidence, STOP and report
-- For special-char URLs, ALWAYS use navigate_browser instead of curl
+RULES:
+- Execute steps in order; complete prerequisites before exploiting.
+- Never repeat same failed command — try alternative.
+- For special-char URLs, use navigate_browser instead of curl.
 """ + _REACT_FOOTER
 
 
 class Prompts:
-    """动态生成的提示词模板（兼容现有代码的类属性访问方式）"""
+    """动态生成的提示词模板"""
     
     scan_prompt = _build_scan_prompt()
     inquire_prompt = _build_inquire_prompt()

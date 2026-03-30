@@ -28,7 +28,7 @@ from IPython.display import Image, display
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from langchain_core.language_models import BaseChatModel
-from tools import new_terminal_tool, cat_html_tool, playwright_tool, service_lookup_tool, set_target_ip
+from tools import new_terminal_tool, cat_html_tool, playwright_tool
 from utils import retry
 from psm import AgentState, States, router
 
@@ -114,9 +114,8 @@ class AutoPT:
         # 容错解析器 —— 兼容思考型模型（Gemini Thinking, DeepSeek R1 等）
         robust_parser = RobustReActParser()
 
-        # scan agent
+        # scan agent（直接通过 EXECMD 执行 nmap 进行端口发现，无需单独的 PortScan 工具）
         scan_tools = new_terminal_tool(log_callback=self.log_callback)
-        scan_tools = service_lookup_tool(scan_tools)
         scan = create_react_agent(
             llm=llm,
             tools=scan_tools,
@@ -193,8 +192,6 @@ class AutoPT:
                 f"Final Goal : {target}\n"
             )
         problem = self.states.problem
-        # 注入靶机 IP，供 ServicePort 动态发现兜底使用
-        set_target_ip(ip_addr)
         self._emit_log(f"[引擎] 目标注入完成，启动状态机运行 (最大递归深度: {self.config['psm']['sys_iterations']})")
         asyncio.run(graph.ainvoke(
             {"message": [HumanMessage(content=problem)], "sender": "System", "history": [], "vulns": [], "check_count": 0},

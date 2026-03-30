@@ -1,8 +1,16 @@
 # Python dependencies - install with: pip install -r requirements.txt
 #
-# Binary tool dependencies (masscan / httpx / xray) are NOT pip packages.
-# Install them by running (from project root):
-#   sudo ./install_tools.sh
+# System-level binary tool dependencies (NOT pip packages):
+#   - nmap      : 全端口扫描与服务识别（LLM 驱动的端口发现核心依赖）
+#   - netcat    : 网络连接与端口探测（可选）
+#   - xray      : Web 漏洞自动化扫描器（Scan Agent 核心依赖）
+#   - curl      : HTTP 请求工具
+#   - wget      : 文件下载工具
+#   - docker    : 漏洞靶机容器运行环境（Docker Desktop for Windows）
+#
+# Windows 一键安装所有系统工具（以管理员身份运行 PowerShell）:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#   .\install_tools.ps1
 
 beautifulsoup4==4.12.3
 ipython==8.12.3

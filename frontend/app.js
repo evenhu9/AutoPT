@@ -5,10 +5,9 @@ const API = '';
 let allVulns = [], currentTaskId = null, logPollTimer = null, logOffset = 0, _envCache = null;
 
 const MODEL_NAMES = {
-    gpt35turbo: 'GPT-3.5 Turbo', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o', gpt4turbo: 'GPT-4-turbo',
+    gpt35turbo: 'GPT-3.5 Turbo', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o', 
     'qwen-plus': '通义千问 Qwen-Plus', 'qwen-max': '通义千问 Qwen-Max', 'glm-4': '智谱 GLM-4',
-    'deepseek-chat': 'DeepSeek Chat', 'deepseek-reasoner': 'DeepSeek Reasoner',
-    'ernie-4': '文心一言 ERNIE-4', llama31: 'Llama 3.1 70B'
+    'deepseek-chat': 'DeepSeek Chat', 'deepseek-reasoner': 'DeepSeek Reasoner'
 };
 const PRESET_MODELS = Object.keys(MODEL_NAMES);
 

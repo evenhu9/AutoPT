@@ -201,12 +201,13 @@ class AutoPT:
         ))
 
     def log(self, i: int, runtime: float) -> dict:
+        from datetime import datetime
         if 'Successfully exploited the vulnerability' in self.states.history[-1]:
             self.flag = 'success'
         else:
             self.flag = 'failed'
 
-        log = {'count': i, 'flag': self.flag, 'runtime': runtime}
+        log = {'count': i, 'flag': self.flag, 'runtime': runtime, 'timestamp': datetime.now().isoformat()}
         if self.config['test']['save_command']:
             log['commands'] = self.states.commands
         if self.config['test']['save_history']:

@@ -136,6 +136,8 @@ def get_vulns():
 @app.route('/api/results', methods=['GET'])
 def get_results():
     results = load_results()
+    # 按时间戳降序排列（最新的在前面），没有时间戳的排在最后
+    results.sort(key=lambda r: r.get('timestamp', ''), reverse=True)
     return jsonify({'status': 'ok', 'data': results, 'total': len(results)})
 
 @app.route('/api/results/stats', methods=['GET'])

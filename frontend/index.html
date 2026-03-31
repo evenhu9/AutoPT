@@ -13,125 +13,74 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <div class="logo-icon">
-                    <i class="ri-shield-keyhole-fill"></i>
-                </div>
-                <div class="logo-text">
-                    <h1>AutoPT</h1>
-                    <span>AI Penetration Testing</span>
-                </div>
+                <div class="logo-icon"><i class="ri-shield-keyhole-fill"></i></div>
+                <div class="logo-text"><h1>AutoPT</h1><span>AI Penetration Testing</span></div>
             </div>
         </div>
-        <nav class="sidebar-nav">
-            <ul>
-                <li class="nav-item active" data-page="dashboard">
-                    <i class="ri-dashboard-3-line"></i><span>控制台</span>
-                </li>
-                <li class="nav-item" data-page="vulns">
-                    <i class="ri-bug-line"></i><span>漏洞库</span>
-                </li>
-                <li class="nav-item" data-page="attack">
-                    <i class="ri-crosshair-2-line"></i><span>渗透测试</span>
-                </li>
-                <li class="nav-item" data-page="docker">
-                    <i class="ri-server-line"></i><span>靶机管理</span>
-                </li>
-                <li class="nav-item" data-page="results">
-                    <i class="ri-file-chart-line"></i><span>测试报告</span>
-                </li>
-                <li class="nav-item" data-page="settings">
-                    <i class="ri-settings-4-line"></i><span>系统设置</span>
-                </li>
-            </ul>
-        </nav>
+        <nav class="sidebar-nav"><ul>
+            <li class="nav-item active" data-page="dashboard"><i class="ri-dashboard-3-line"></i><span>控制台</span></li>
+            <li class="nav-item" data-page="vulns"><i class="ri-bug-line"></i><span>漏洞库</span></li>
+            <li class="nav-item" data-page="attack"><i class="ri-crosshair-2-line"></i><span>渗透测试</span></li>
+            <li class="nav-item" data-page="docker"><i class="ri-server-line"></i><span>靶机管理</span></li>
+            <li class="nav-item" data-page="results"><i class="ri-file-chart-line"></i><span>测试报告</span></li>
+            <li class="nav-item" data-page="settings"><i class="ri-settings-4-line"></i><span>系统设置</span></li>
+        </ul></nav>
         <div class="sidebar-footer">
-            <div class="system-badge" id="systemBadge">
-                <i class="ri-checkbox-circle-fill"></i>
-                <span>系统就绪</span>
-            </div>
+            <div class="system-badge" id="systemBadge"><i class="ri-checkbox-circle-fill"></i><span>系统就绪</span></div>
         </div>
     </aside>
 
     <!-- 主内容区 -->
     <main class="main-content">
-        <!-- 顶部栏 -->
         <header class="topbar">
             <div class="topbar-left">
-                <button class="menu-toggle" id="menuToggle">
-                    <i class="ri-menu-line"></i>
-                </button>
+                <button class="menu-toggle" id="menuToggle"><i class="ri-menu-line"></i></button>
                 <div class="breadcrumb" id="breadcrumb">
                     <span class="breadcrumb-icon"><i class="ri-home-4-line"></i></span>
                     <span id="pageTitle">控制台</span>
                 </div>
             </div>
             <div class="topbar-right">
-                <div class="topbar-status">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span id="statusText">就绪</span>
-                </div>
+                <div class="topbar-status"><span class="status-dot" id="statusDot"></span><span id="statusText">就绪</span></div>
             </div>
         </header>
 
-        <!-- 页面容器 -->
         <div class="page-container">
-            <!-- ======== 控制台页面 ======== -->
+            <!-- 控制台 -->
             <section class="page active" id="page-dashboard">
                 <div class="stats-grid">
                     <div class="stat-card" data-color="blue">
                         <div class="stat-icon"><i class="ri-bug-line"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="statVulns">20</div>
-                            <div class="stat-label">漏洞总数</div>
-                        </div>
+                        <div class="stat-info"><div class="stat-value" id="statVulns">20</div><div class="stat-label">漏洞总数</div></div>
                         <div class="stat-trend"><i class="ri-database-2-line"></i> CVE基准库</div>
                     </div>
                     <div class="stat-card" data-color="green">
                         <div class="stat-icon"><i class="ri-check-double-line"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="statSuccess">0</div>
-                            <div class="stat-label">测试成功</div>
-                        </div>
+                        <div class="stat-info"><div class="stat-value" id="statSuccess">0</div><div class="stat-label">测试成功</div></div>
                         <div class="stat-trend"><i class="ri-arrow-up-line"></i> <span id="statRate">0%</span> 成功率</div>
                     </div>
                     <div class="stat-card" data-color="red">
                         <div class="stat-icon"><i class="ri-close-circle-line"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="statFailed">0</div>
-                            <div class="stat-label">测试失败</div>
-                        </div>
+                        <div class="stat-info"><div class="stat-value" id="statFailed">0</div><div class="stat-label">测试失败</div></div>
                         <div class="stat-trend"><i class="ri-time-line"></i> <span id="statAvgTime">0s</span> 平均耗时</div>
                     </div>
                     <div class="stat-card" data-color="purple">
                         <div class="stat-icon"><i class="ri-robot-line"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="statModel">GPT-4o</div>
-                            <div class="stat-label">当前模型</div>
-                        </div>
+                        <div class="stat-info"><div class="stat-value" id="statModel">GPT-4o</div><div class="stat-label">当前模型</div></div>
                         <div class="stat-trend"><i class="ri-cpu-line"></i> AI智能决策</div>
                     </div>
                 </div>
-
-                <!-- 架构图 + 快捷操作 -->
                 <div class="dashboard-grid">
                     <div class="card architecture-card">
-                        <div class="card-header">
-                            <h3><i class="ri-flow-chart"></i> 渗透测试状态机</h3>
-                        </div>
+                        <div class="card-header"><h3><i class="ri-flow-chart"></i> 渗透测试状态机</h3></div>
                         <div class="card-body">
                             <div class="state-machine">
-                                <div class="sm-node sm-start">START</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
-                                <div class="sm-node sm-scan">Scan Agent</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
-                                <div class="sm-node sm-select">Vuln Select</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
-                                <div class="sm-node sm-inquire">Inquire Agent</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
-                                <div class="sm-node sm-exploit">Exploit Agent</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
-                                <div class="sm-node sm-check">Check</div>
-                                <div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-start">START</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-scan">Scan Agent</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-select">Vuln Select</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-inquire">Inquire Agent</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-exploit">Exploit Agent</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
+                                <div class="sm-node sm-check">Check</div><div class="sm-arrow"><i class="ri-arrow-right-line"></i></div>
                                 <div class="sm-node sm-end">END</div>
                             </div>
                             <div class="sm-legend">
@@ -143,46 +92,22 @@
                         </div>
                     </div>
                     <div class="card quick-actions-card">
-                        <div class="card-header">
-                            <h3><i class="ri-flashlight-line"></i> 快捷操作</h3>
-                        </div>
+                        <div class="card-header"><h3><i class="ri-flashlight-line"></i> 快捷操作</h3></div>
                         <div class="card-body">
-                            <button class="action-btn" onclick="switchPage('attack')">
-                                <i class="ri-play-circle-line"></i>
-                                <span>启动测试</span>
-                                <small>开始一次渗透测试任务</small>
-                            </button>
-                            <button class="action-btn" onclick="switchPage('docker')">
-                                <i class="ri-server-line"></i>
-                                <span>管理靶机</span>
-                                <small>启停Docker漏洞环境</small>
-                            </button>
-                            <button class="action-btn" onclick="switchPage('vulns')">
-                                <i class="ri-shield-check-line"></i>
-                                <span>浏览漏洞库</span>
-                                <small>20个CVE漏洞基准</small>
-                            </button>
-                            <button class="action-btn" onclick="switchPage('settings')">
-                                <i class="ri-tools-line"></i>
-                                <span>系统配置</span>
-                                <small>API密钥与参数设置</small>
-                            </button>
+                            <button class="action-btn" onclick="switchPage('attack')"><i class="ri-play-circle-line"></i><span>启动测试</span><small>开始一次渗透测试任务</small></button>
+                            <button class="action-btn" onclick="switchPage('docker')"><i class="ri-server-line"></i><span>管理靶机</span><small>启停Docker漏洞环境</small></button>
+                            <button class="action-btn" onclick="switchPage('vulns')"><i class="ri-shield-check-line"></i><span>浏览漏洞库</span><small>20个CVE漏洞基准</small></button>
+                            <button class="action-btn" onclick="switchPage('settings')"><i class="ri-tools-line"></i><span>系统配置</span><small>API密钥与参数设置</small></button>
                         </div>
                     </div>
                 </div>
-
-                <!-- OWASP类型分布 -->
                 <div class="card">
-                    <div class="card-header">
-                        <h3><i class="ri-pie-chart-line"></i> OWASP Top 10 漏洞分布</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="owasp-grid" id="owaspGrid"></div>
-                    </div>
+                    <div class="card-header"><h3><i class="ri-pie-chart-line"></i> OWASP Top 10 漏洞分布</h3></div>
+                    <div class="card-body"><div class="owasp-grid" id="owaspGrid"></div></div>
                 </div>
             </section>
 
-            <!-- ======== 漏洞库页面 ======== -->
+            <!-- 漏洞库 -->
             <section class="page" id="page-vulns">
                 <div class="page-toolbar">
                     <div class="search-box">
@@ -190,222 +115,114 @@
                         <input type="text" id="vulnSearch" placeholder="搜索漏洞名称、CVE编号..." oninput="filterVulns()">
                     </div>
                     <div class="filter-group">
-                        <select id="vulnTypeFilter" onchange="filterVulns()">
-                            <option value="">全部类型</option>
-                        </select>
-                        <select id="vulnDiffFilter" onchange="filterVulns()">
-                            <option value="">全部难度</option>
-                            <option value="Simple">简单</option>
-                            <option value="Complex">复杂</option>
-                        </select>
+                        <select id="vulnTypeFilter" onchange="filterVulns()"><option value="">全部类型</option></select>
+                        <select id="vulnDiffFilter" onchange="filterVulns()"><option value="">全部难度</option><option value="Simple">简单</option><option value="Complex">复杂</option></select>
                     </div>
                 </div>
                 <div class="vuln-grid" id="vulnGrid"></div>
             </section>
 
-            <!-- ======== 渗透测试页面 ======== -->
+            <!-- 渗透测试 -->
             <section class="page" id="page-attack">
                 <div class="attack-layout">
                     <div class="card attack-config-card">
-                        <div class="card-header">
-                            <h3><i class="ri-settings-3-line"></i> 测试配置</h3>
-                        </div>
+                        <div class="card-header"><h3><i class="ri-settings-3-line"></i> 测试配置</h3></div>
                         <div class="card-body">
-                            <div class="form-group">
-                                <label>目标漏洞</label>
-                                <select id="attackVuln" class="form-control">
-                                    <option value="">选择目标漏洞...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>目标IP地址</label>
-                                <input type="text" id="attackIP" class="form-control" value="127.0.0.1" placeholder="127.0.0.1">
-                            </div>
-                            <button class="btn btn-primary btn-full" id="startAttackBtn" onclick="startAttack()">
-                                <i class="ri-rocket-line"></i> 启动渗透测试
-                            </button>
+                            <div class="form-group"><label>目标漏洞</label><select id="attackVuln" class="form-control"><option value="">选择目标漏洞...</option></select></div>
+                            <div class="form-group"><label>目标IP地址</label><input type="text" id="attackIP" class="form-control" value="127.0.0.1" placeholder="127.0.0.1"></div>
+                            <button class="btn btn-primary btn-full" id="startAttackBtn" onclick="startAttack()"><i class="ri-rocket-line"></i> 启动渗透测试</button>
                         </div>
                     </div>
                     <div class="card attack-log-card">
                         <div class="card-header">
                             <h3><i class="ri-terminal-line"></i> 实时日志</h3>
-                            <div class="card-actions">
-                                <span class="task-badge" id="taskBadge">等待中</span>
-                            </div>
+                            <div class="card-actions"><span class="task-badge" id="taskBadge">等待中</span></div>
                         </div>
                         <div class="card-body log-body">
                             <div class="log-container" id="logContainer">
-                                <div class="log-placeholder">
-                                    <i class="ri-terminal-box-line"></i>
-                                    <p>配置参数后点击"启动渗透测试"开始</p>
-                                </div>
+                                <div class="log-placeholder"><i class="ri-terminal-box-line"></i><p>配置参数后点击"启动渗透测试"开始</p></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- ======== Docker靶机管理页面 ======== -->
+            <!-- Docker靶机管理 -->
             <section class="page" id="page-docker">
                 <div class="docker-header">
-                    <div class="docker-status-bar" id="dockerStatusBar">
-                        <i class="ri-loader-4-line"></i> 正在检查Docker状态...
-                    </div>
+                    <div class="docker-status-bar" id="dockerStatusBar"><i class="ri-loader-4-line"></i> 正在检查Docker状态...</div>
                 </div>
                 <div class="card">
-                    <div class="card-header">
-                        <h3><i class="ri-server-line"></i> 运行中的容器</h3>
-                        <button class="btn btn-sm" onclick="refreshDocker()"><i class="ri-refresh-line"></i> 刷新</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-container">
-                            <table class="data-table" id="containerTable">
-                                <thead>
-                                    <tr>
-                                        <th>容器ID</th><th>镜像</th><th>状态</th><th>端口</th><th>名称</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="containerBody">
-                                    <tr><td colspan="5" class="table-empty">加载中...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <div class="card-header"><h3><i class="ri-server-line"></i> 运行中的容器</h3><button class="btn btn-sm" onclick="refreshDocker()"><i class="ri-refresh-line"></i> 刷新</button></div>
+                    <div class="card-body"><div class="table-container">
+                        <table class="data-table" id="containerTable">
+                            <thead><tr><th>容器ID</th><th>镜像</th><th>状态</th><th>端口</th><th>名称</th></tr></thead>
+                            <tbody id="containerBody"><tr><td colspan="5" class="table-empty">加载中...</td></tr></tbody>
+                        </table>
+                    </div></div>
                 </div>
                 <div class="card">
-                    <div class="card-header">
-                        <h3><i class="ri-folder-open-line"></i> 可用漏洞环境</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="env-grid" id="envGrid">
-                            <div class="loading-spinner"><i class="ri-loader-4-line ri-spin"></i> 加载中...</div>
-                        </div>
-                    </div>
+                    <div class="card-header"><h3><i class="ri-folder-open-line"></i> 可用漏洞环境</h3></div>
+                    <div class="card-body"><div class="env-grid" id="envGrid"><div class="loading-spinner"><i class="ri-loader-4-line ri-spin"></i> 加载中...</div></div></div>
                 </div>
             </section>
 
-            <!-- ======== 测试报告页面 ======== -->
+            <!-- 测试报告 -->
             <section class="page" id="page-results">
                 <div class="history-panel">
-                    <!-- 测试历史记录表格 -->
                     <div class="card history-table-card">
                         <div class="card-header">
                             <h3><i class="ri-file-list-3-line"></i> 测试历史记录</h3>
                             <span class="history-count-badge" id="historyCountBadge">0 条</span>
                         </div>
-                        <div class="card-body">
-                            <div class="table-container" id="historyTableContainer">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="resultBody">
-                                        <tr><td colspan="5" class="table-empty">暂无测试记录</td></tr>
-                                    </tbody>
-                                </table>
+                        <div class="history-toolbar">
+                            <div class="search-box has-clear">
+                                <i class="ri-search-line"></i>
+                                <input type="text" id="historySearch" placeholder="搜索漏洞名称、模型、结果..." oninput="filterResults()">
+                                <i class="ri-close-circle-line search-clear-btn" id="historySearchClear" onclick="clearSearch()" title="清空搜索"></i>
                             </div>
+                            <button class="history-sort-btn" id="historySortBtn" onclick="toggleSortOrder()" title="切换时间排序">
+                                <i class="ri-arrow-up-s-line" id="sortIcon"></i><span id="sortLabel">最新优先</span>
+                            </button>
                         </div>
+                        <div class="card-body"><div class="table-container" id="historyTableContainer">
+                            <table class="data-table">
+                                <thead><tr><th>时间</th><th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>操作</th></tr></thead>
+                                <tbody id="resultBody"><tr><td colspan="6" class="table-empty">暂无测试记录</td></tr></tbody>
+                            </table>
+                        </div></div>
                     </div>
                 </div>
-
-                <!-- 数据分析模块 -->
                 <div class="card analytics-card">
-                    <div class="card-header">
-                        <h3><i class="ri-bar-chart-grouped-line"></i> 数据分析</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="analytics-grid">
-                            <!-- 汇总指标卡片 -->
-                            <div class="analytics-summary">
-                                <div class="summary-item">
-                                    <div class="summary-icon success"><i class="ri-checkbox-circle-line"></i></div>
-                                    <div class="summary-info">
-                                        <span class="summary-value" id="analyticSuccess">0</span>
-                                        <span class="summary-label">成功</span>
-                                    </div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-icon failed"><i class="ri-close-circle-line"></i></div>
-                                    <div class="summary-info">
-                                        <span class="summary-value" id="analyticFailed">0</span>
-                                        <span class="summary-label">失败</span>
-                                    </div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-icon rate"><i class="ri-percent-line"></i></div>
-                                    <div class="summary-info">
-                                        <span class="summary-value" id="analyticRate">0%</span>
-                                        <span class="summary-label">成功率</span>
-                                    </div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-icon time"><i class="ri-timer-line"></i></div>
-                                    <div class="summary-info">
-                                        <span class="summary-value" id="analyticAvgTime">0s</span>
-                                        <span class="summary-label">平均耗时</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- 漏洞类型分布 -->
-                            <div class="analytics-chart-section">
-                                <h4 class="chart-title"><i class="ri-pie-chart-line"></i> 漏洞类型分布</h4>
-                                <div class="chart-bars" id="typeDistChart"></div>
-                            </div>
-                            <!-- 测试结果趋势 -->
-                            <div class="analytics-chart-section">
-                                <h4 class="chart-title"><i class="ri-line-chart-line"></i> 测试结果趋势</h4>
-                                <div class="trend-chart" id="trendChart"></div>
-                            </div>
+                    <div class="card-header"><h3><i class="ri-bar-chart-grouped-line"></i> 数据分析</h3></div>
+                    <div class="card-body"><div class="analytics-grid">
+                        <div class="analytics-summary">
+                            <div class="summary-item"><div class="summary-icon success"><i class="ri-checkbox-circle-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticSuccess">0</span><span class="summary-label">成功</span></div></div>
+                            <div class="summary-item"><div class="summary-icon failed"><i class="ri-close-circle-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticFailed">0</span><span class="summary-label">失败</span></div></div>
+                            <div class="summary-item"><div class="summary-icon rate"><i class="ri-percent-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticRate">0%</span><span class="summary-label">成功率</span></div></div>
+                            <div class="summary-item"><div class="summary-icon time"><i class="ri-timer-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticAvgTime">0s</span><span class="summary-label">平均耗时</span></div></div>
                         </div>
-                    </div>
+                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-pie-chart-line"></i> 漏洞类型分布</h4><div class="chart-bars" id="typeDistChart"></div></div>
+                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-line-chart-line"></i> 测试结果趋势</h4><div class="trend-chart" id="trendChart"></div></div>
+                    </div></div>
                 </div>
             </section>
 
-            <!-- ======== 系统设置页面 ======== -->
+            <!-- 系统设置 -->
             <section class="page" id="page-settings">
                 <div class="settings-grid">
                     <div class="card">
                         <div class="card-header"><h3><i class="ri-key-2-line"></i> AI模型配置</h3></div>
                         <div class="card-body">
-                            <div class="form-group">
-                                <label>API Base URL</label>
-                                <input type="text" id="cfgApiBase" class="form-control" placeholder="https://api.openai.com/v1">
-                            </div>
-                            <div class="form-group">
-                                <label>API Key</label>
-                                <div class="input-group">
-                                    <input type="password" id="cfgApiKey" class="form-control" placeholder="sk-...">
-                                    <button class="btn btn-sm" onclick="togglePassword('cfgApiKey')"><i class="ri-eye-line"></i></button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Temperature</label>
-                                <input type="range" id="cfgTemp" class="form-range" min="0" max="1" step="0.1" value="0.5" oninput="document.getElementById('cfgTempVal').textContent=this.value">
-                                <span id="cfgTempVal" class="range-value">0.5</span>
-                            </div>
+                            <div class="form-group"><label>API Base URL</label><input type="text" id="cfgApiBase" class="form-control" placeholder="https://api.openai.com/v1"></div>
+                            <div class="form-group"><label>API Key</label><div class="input-group"><input type="password" id="cfgApiKey" class="form-control" placeholder="sk-..."><button class="btn btn-sm" onclick="togglePassword('cfgApiKey')"><i class="ri-eye-line"></i></button></div></div>
+                            <div class="form-group"><label>Temperature</label><input type="range" id="cfgTemp" class="form-range" min="0" max="1" step="0.1" value="0.5" oninput="document.getElementById('cfgTempVal').textContent=this.value"><span id="cfgTempVal" class="range-value">0.5</span></div>
                             <div class="form-group">
                                 <label>默认模型</label>
                                 <select id="cfgModel" class="form-control" onchange="onCfgModelChange()">
-                                    <optgroup label="GPT 系列">
-                                        <option value="gpt4omini">GPT-4o-mini（均衡推荐）</option>
-                                        <option value="gpt35turbo">GPT-3.5-turbo（快速）</option>
-                                        <option value="gpt4o">GPT-4o（精准）</option>
-                                        <option value="gpt4turbo">GPT-4-turbo</option>
-                                    </optgroup>
-                                    <optgroup label="国产模型">
-                                        <option value="qwen-plus">通义千问 Qwen-Plus</option>
-                                        <option value="qwen-max">通义千问 Qwen-Max</option>
-                                        <option value="glm-4">智谱 GLM-4</option>
-                                        <option value="deepseek-chat">DeepSeek Chat</option>
-                                        <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-                                        <option value="ernie-4">文心一言 ERNIE-4</option>
-                                    </optgroup>
-                                    <optgroup label="其他">
-                                        <option value="llama31">Llama 3.1 70B</option>
-                                        <option value="__custom__">自定义模型...</option>
-                                    </optgroup>
+                                    <optgroup label="GPT 系列"><option value="gpt4omini">GPT-4o-mini（均衡推荐）</option><option value="gpt35turbo">GPT-3.5-turbo（快速）</option><option value="gpt4o">GPT-4o（精准）</option><option value="gpt4turbo">GPT-4-turbo</option></optgroup>
+                                    <optgroup label="国产模型"><option value="qwen-plus">通义千问 Qwen-Plus</option><option value="qwen-max">通义千问 Qwen-Max</option><option value="glm-4">智谱 GLM-4</option><option value="deepseek-chat">DeepSeek Chat</option><option value="deepseek-reasoner">DeepSeek Reasoner</option><option value="ernie-4">文心一言 ERNIE-4</option></optgroup>
+                                    <optgroup label="其他"><option value="llama31">Llama 3.1 70B</option><option value="__custom__">自定义模型...</option></optgroup>
                                 </select>
                                 <input type="text" id="cfgModelCustom" class="form-control" placeholder="输入模型名称" style="display:none;margin-top:8px">
                             </div>
@@ -414,58 +231,32 @@
                     <div class="card">
                         <div class="card-header"><h3><i class="ri-git-branch-line"></i> 状态机参数</h3></div>
                         <div class="card-body">
-                            <div class="form-group">
-                                <label>最大迭代次数</label>
-                                <input type="number" id="cfgSysIter" class="form-control" value="15" min="1" max="50">
-                            </div>
-                            <div class="form-group">
-                                <label>Exploit迭代数</label>
-                                <input type="number" id="cfgExpIter" class="form-control" value="3" min="1" max="10">
-                            </div>
-                            <div class="form-group">
-                                <label>Inquire迭代数</label>
-                                <input type="number" id="cfgQueryIter" class="form-control" value="1" min="1" max="10">
-                            </div>
-                            <div class="form-group">
-                                <label>Scan迭代数</label>
-                                <input type="number" id="cfgScanIter" class="form-control" value="1" min="1" max="10">
-                            </div>
-                            <div class="form-group">
-                                <label>命令超时(秒)</label>
-                                <input type="number" id="cfgTimeout" class="form-control" value="120" min="30" max="600">
-                            </div>
+                            <div class="form-group"><label>最大迭代次数</label><input type="number" id="cfgSysIter" class="form-control" value="15" min="1" max="50"></div>
+                            <div class="form-group"><label>Exploit迭代数</label><input type="number" id="cfgExpIter" class="form-control" value="3" min="1" max="10"></div>
+                            <div class="form-group"><label>Inquire迭代数</label><input type="number" id="cfgQueryIter" class="form-control" value="1" min="1" max="10"></div>
+                            <div class="form-group"><label>Scan迭代数</label><input type="number" id="cfgScanIter" class="form-control" value="1" min="1" max="10"></div>
+                            <div class="form-group"><label>命令超时(秒)</label><input type="number" id="cfgTimeout" class="form-control" value="120" min="30" max="600"></div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-header"><h3><i class="ri-computer-line"></i> 系统信息</h3></div>
-                        <div class="card-body">
-                            <div class="sys-info" id="sysInfo">
-                                <div class="loading-spinner"><i class="ri-loader-4-line ri-spin"></i> 加载中...</div>
-                            </div>
-                        </div>
+                        <div class="card-body"><div class="sys-info" id="sysInfo"><div class="loading-spinner"><i class="ri-loader-4-line ri-spin"></i> 加载中...</div></div></div>
                     </div>
                 </div>
-                <!-- 全局保存按钮 -->
                 <div class="settings-save-bar">
-                    <button class="btn btn-primary btn-save-config" onclick="saveConfig()">
-                        <i class="ri-save-line"></i> 保存所有配置
-                    </button>
+                    <button class="btn btn-primary btn-save-config" onclick="saveConfig()"><i class="ri-save-line"></i> 保存所有配置</button>
                 </div>
             </section>
         </div>
     </main>
 
-    <!-- 详情弹窗 -->
+    <!-- 弹窗 -->
     <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
         <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 id="modalTitle">详情</h3>
-                <button class="modal-close" onclick="closeModal()"><i class="ri-close-line"></i></button>
-            </div>
+            <div class="modal-header"><h3 id="modalTitle">详情</h3><button class="modal-close" onclick="closeModal()"><i class="ri-close-line"></i></button></div>
             <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
-
     <script src="app.js"></script>
 </body>
 </html>

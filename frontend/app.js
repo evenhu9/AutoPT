@@ -1,23 +1,18 @@
 /**
  * AutoPT 前端控制逻辑 - 自动化渗透测试平台
  */
-
 const API = '';
-let allVulns = [];
-let currentTaskId = null;
-let logPollTimer = null;
-let logOffset = 0;
-let _envCache = null;
+let allVulns = [], currentTaskId = null, logPollTimer = null, logOffset = 0, _envCache = null;
 
 const MODEL_NAMES = {
     gpt35turbo: 'GPT-3.5 Turbo', gpt4omini: 'GPT-4o-mini', gpt4o: 'GPT-4o', gpt4turbo: 'GPT-4-turbo',
     'qwen-plus': '通义千问 Qwen-Plus', 'qwen-max': '通义千问 Qwen-Max', 'glm-4': '智谱 GLM-4',
-    'deepseek-chat': 'DeepSeek Chat', 'deepseek-reasoner': 'DeepSeek Reasoner', 'ernie-4': '文心一言 ERNIE-4', llama31: 'Llama 3.1 70B'
+    'deepseek-chat': 'DeepSeek Chat', 'deepseek-reasoner': 'DeepSeek Reasoner',
+    'ernie-4': '文心一言 ERNIE-4', llama31: 'Llama 3.1 70B'
 };
-
 const PRESET_MODELS = Object.keys(MODEL_NAMES);
 
-// ==================== 通用API请求 ====================
+// ==================== 通用工具 ====================
 async function apiFetch(url, { method = 'GET', body, retries = 2, timeout = 15000 } = {}) {
     for (let i = 0; i <= retries; i++) {
         try {
@@ -36,17 +31,15 @@ async function apiFetch(url, { method = 'GET', body, retries = 2, timeout = 1500
             return await res.json();
         } catch (e) {
             const msg = e.name === 'AbortError' ? '请求超时' : (e.message || '网络连接失败');
-            console.warn(`[API] ${method} ${url} 失败 (${i + 1}/${retries + 1}): ${msg}`);
+            console.warn(`[API] ${method} ${url} 失败 (${i+1}/${retries+1}): ${msg}`);
             if (i < retries) { await new Promise(r => setTimeout(r, 1000 * (i + 1))); continue; }
             return { status: 'error', message: msg };
         }
     }
 }
-
 const apiGet = url => apiFetch(url);
 const apiPost = (url, data) => apiFetch(url, { method: 'POST', body: data, retries: 0, timeout: 30000 });
 
-// ==================== 工具函数 ====================
 function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
 function $(id) { return document.getElementById(id); }
 function togglePassword(id) { const el = $(id); el.type = el.type === 'password' ? 'text' : 'password'; }
@@ -62,9 +55,8 @@ const PAGE_LOADERS = {
 function switchPage(name) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const page = $(`page-${name}`), nav = document.querySelector(`.nav-item[data-page="${name}"]`);
-    if (page) page.classList.add('active');
-    if (nav) nav.classList.add('active');
+    $(`page-${name}`)?.classList.add('active');
+    document.querySelector(`.nav-item[data-page="${name}"]`)?.classList.add('active');
     $('pageTitle').textContent = PAGE_TITLES[name] || name;
     PAGE_LOADERS[name]?.();
 }
@@ -98,13 +90,9 @@ function renderOwaspGrid(vulns) {
     vulns.forEach(v => { const t = v.type || 'Unknown'; typeMap[t] = (typeMap[t] || 0) + 1; });
     const max = Math.max(...Object.values(typeMap), 1);
     $('owaspGrid').innerHTML = Object.entries(typeMap).map(([name, count]) => `
-        <div class="owasp-item">
-            <div class="owasp-count">${count}</div>
-            <div class="owasp-info">
-                <div class="owasp-name">${name}</div>
-                <div class="owasp-bar"><div class="owasp-bar-fill" style="width:${(count/max*100).toFixed(0)}%"></div></div>
-            </div>
-        </div>`).join('');
+        <div class="owasp-item"><div class="owasp-count">${count}</div>
+            <div class="owasp-info"><div class="owasp-name">${name}</div>
+            <div class="owasp-bar"><div class="owasp-bar-fill" style="width:${(count/max*100).toFixed(0)}%"></div></div></div></div>`).join('');
 }
 
 // ==================== 漏洞库 ====================
@@ -112,16 +100,11 @@ async function loadVulns() {
     const res = await apiGet('/api/vulns');
     if (res.status !== 'ok') return;
     allVulns = res.data;
-
     // 填充筛选器（仅首次）
     const sel = $('vulnTypeFilter');
-    if (sel.options.length <= 1) {
-        [...new Set(allVulns.map(v => v.type))].sort().forEach(t => sel.add(new Option(t, t)));
-    }
+    if (sel.options.length <= 1) [...new Set(allVulns.map(v => v.type))].sort().forEach(t => sel.add(new Option(t, t)));
     const aSel = $('attackVuln');
-    if (aSel.options.length <= 1) {
-        allVulns.forEach(v => aSel.add(new Option(`${v.name} (${v.difficulty})`, v.name)));
-    }
+    if (aSel.options.length <= 1) allVulns.forEach(v => aSel.add(new Option(`${v.name} (${v.difficulty})`, v.name)));
     renderVulns(allVulns);
 }
 
@@ -129,22 +112,17 @@ function filterVulns() {
     const s = $('vulnSearch').value.toLowerCase(), tf = $('vulnTypeFilter').value, df = $('vulnDiffFilter').value;
     renderVulns(allVulns.filter(v =>
         (!s || v.name.toLowerCase().includes(s) || (v.description || '').toLowerCase().includes(s)) &&
-        (!tf || v.type === tf) && (!df || v.difficulty === df)
-    ));
+        (!tf || v.type === tf) && (!df || v.difficulty === df)));
 }
 
 function renderVulns(vulns) {
     $('vulnGrid').innerHTML = vulns.length ? vulns.map(v => `
         <div class="vuln-card" onclick="showVulnDetail('${v.name}')">
-            <div class="vuln-card-header">
-                <div class="vuln-name">${v.name}</div>
-                <span class="vuln-difficulty ${v.difficulty.toLowerCase()}">${v.difficulty === 'Simple' ? '简单' : '复杂'}</span>
-            </div>
+            <div class="vuln-card-header"><div class="vuln-name">${v.name}</div>
+                <span class="vuln-difficulty ${v.difficulty.toLowerCase()}">${v.difficulty === 'Simple' ? '简单' : '复杂'}</span></div>
             <div class="vuln-desc">${v.description || '暂无描述'}</div>
-            <div class="vuln-footer">
-                <span class="vuln-type">${v.type}</span>
-                <span class="vuln-action"><i class="ri-arrow-right-s-line"></i> 详情</span>
-            </div>
+            <div class="vuln-footer"><span class="vuln-type">${v.type}</span>
+                <span class="vuln-action"><i class="ri-arrow-right-s-line"></i> 详情</span></div>
         </div>`).join('') : '<div class="loading-spinner">未找到匹配的漏洞</div>';
 }
 
@@ -155,15 +133,12 @@ function showVulnDetail(name) {
     $('modalBody').innerHTML = `
         <div style="margin-bottom:16px">
             <span class="badge badge-info">${v.type}</span>
-            <span class="badge ${v.difficulty === 'Simple' ? 'badge-success' : 'badge-danger'}" style="margin-left:8px">${v.difficulty === 'Simple' ? '简单' : '复杂'}</span>
-        </div>
+            <span class="badge ${v.difficulty === 'Simple' ? 'badge-success' : 'badge-danger'}" style="margin-left:8px">${v.difficulty === 'Simple' ? '简单' : '复杂'}</span></div>
         <h4 style="margin-bottom:8px;color:var(--text-primary)">漏洞描述</h4>
         <p style="margin-bottom:16px">${v.description || '暂无描述'}</p>
         <h4 style="margin-bottom:8px;color:var(--text-primary)">攻击目标</h4>
         <p style="margin-bottom:16px;padding:12px;background:var(--bg-input);border-radius:8px;font-family:var(--font-mono);font-size:13px;color:var(--accent-cyan)">${v.target}</p>
-        <div style="margin-top:20px">
-            <button class="btn btn-primary" onclick="quickAttack('${v.name}')"><i class="ri-crosshair-2-line"></i> 直接测试此漏洞</button>
-        </div>`;
+        <div style="margin-top:20px"><button class="btn btn-primary" onclick="quickAttack('${v.name}')"><i class="ri-crosshair-2-line"></i> 直接测试此漏洞</button></div>`;
     $('modalOverlay').classList.add('active');
 }
 
@@ -173,21 +148,19 @@ function closeModal() { $('modalOverlay').classList.remove('active'); }
 // ==================== 渗透测试 ====================
 async function startAttack() {
     const name = $('attackVuln').value, ip = $('attackIP').value;
-    if (!name) { showToast('请选择目标漏洞', 'warning', '参数缺失'); return; }
-    if (!ip) { showToast('请输入目标IP地址', 'warning', '参数缺失'); return; }
+    if (!name) return showToast('请选择目标漏洞', 'warning', '参数缺失');
+    if (!ip) return showToast('请输入目标IP地址', 'warning', '参数缺失');
 
     const cfgRes = await apiGet('/api/config');
-    if (cfgRes.status !== 'ok') { showToast('无法读取系统配置，请先在系统设置中配置AI模型', 'error', '配置读取失败'); return; }
+    if (cfgRes.status !== 'ok') return showToast('无法读取系统配置，请先在系统设置中配置AI模型', 'error', '配置读取失败');
     const model = (cfgRes.data.test?.models || [])[0] || '';
     if (!model) { showToast('未配置AI模型，请先在系统设置中选择模型', 'warning', '模型未配置'); switchPage('settings'); return; }
 
     const btn = $('startAttackBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> 启动中...';
-    const badge = $('taskBadge');
-    badge.className = 'task-badge running';
-    badge.textContent = '运行中';
-
+    $('taskBadge').className = 'task-badge running';
+    $('taskBadge').textContent = '运行中';
     $('logContainer').innerHTML = '';
     logOffset = 0;
 
@@ -199,7 +172,6 @@ async function startAttack() {
         addLogLine('系统', `模型: ${model}`, 'system');
         $('statusDot').style.background = 'var(--accent-blue)';
         $('statusText').textContent = '测试中';
-        // 按钮变为停止状态
         btn.disabled = false;
         btn.innerHTML = '<i class="ri-stop-circle-line"></i> 停止测试';
         btn.classList.add('btn-danger');
@@ -208,16 +180,14 @@ async function startAttack() {
     } else {
         addLogLine('错误', res.message, 'error');
         resetAttackBtn();
-        badge.className = 'task-badge';
-        badge.textContent = '错误';
+        $('taskBadge').className = 'task-badge';
+        $('taskBadge').textContent = '错误';
     }
 }
 
 function addLogLine(time, message, type = '') {
-    const container = $('logContainer');
-    const line = document.createElement('div');
+    const container = $('logContainer'), line = document.createElement('div');
     line.className = 'log-line';
-    // 如果日志是执行命令（来自terminal.py格式化后的完整命令），给命令内容加特殊样式
     if (message.startsWith('[执行命令] $ ')) {
         const cmd = message.substring('[执行命令] $ '.length);
         line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg system">[执行命令]</span><code class="log-cmd">$ ${escapeHtml(cmd)}</code>`;
@@ -246,19 +216,16 @@ async function pollLogs() {
         });
         logOffset = logRes.total;
     }
-
     const statusRes = await apiGet('/api/task/status');
-    if (statusRes.status === 'ok' && statusRes.data && statusRes.data.status !== 'running') {
+    if (statusRes.status === 'ok' && statusRes.data?.status !== 'running') {
         clearInterval(logPollTimer);
         logPollTimer = null;
         resetAttackBtn();
-        const badge = $('taskBadge');
-        const st = statusRes.data.status;
+        const badge = $('taskBadge'), st = statusRes.data.status;
         const ok = statusRes.data.result === 'success';
         const stopped = st === 'stopped' || statusRes.data.result === 'stopped';
         if (stopped) {
-            badge.className = 'task-badge';
-            badge.textContent = '已停止';
+            badge.className = 'task-badge'; badge.textContent = '已停止';
             addLogLine('系统', '⏹ 测试已被用户中断', 'warning');
         } else {
             badge.className = `task-badge ${ok ? 'success' : 'failed'}`;
@@ -275,12 +242,8 @@ async function stopAttack() {
     btn.disabled = true;
     btn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> 正在停止...';
     const res = await apiPost('/api/task/stop', {});
-    if (res.status === 'ok') {
-        addLogLine('系统', '⏹ 正在中断测试进程...', 'warning');
-    } else {
-        showToast(res.message || '停止失败', 'error', '操作失败');
-    }
-    // pollLogs 会在检测到状态变化后自动恢复按钮
+    if (res.status === 'ok') addLogLine('系统', '⏹ 正在中断测试进程...', 'warning');
+    else showToast(res.message || '停止失败', 'error', '操作失败');
 }
 
 function resetAttackBtn() {
@@ -302,15 +265,12 @@ function renderEnvSkeleton(n = 6) {
 
 function renderEnvCards(envs) {
     return envs.map(env => {
-        const on = env.status === 'running';
-        const encodedPath = encodeURIComponent(env.compose_file);
+        const on = env.status === 'running', ep = encodeURIComponent(env.compose_file);
         return `<div class="env-item ${on ? 'env-running' : ''}"><div class="env-info">
             <div class="env-title-row"><span class="env-status-dot ${on ? 'running' : 'stopped'}"></span><span class="env-name">${env.name}</span></div>
             <div class="env-path">${escapeHtml(env.compose_file)}</div></div>
-            <div class="env-actions">${on
-                ? `<button class="env-btn stop" data-action="stop" data-compose="${encodedPath}"><i class="ri-stop-fill"></i> 停止</button>`
-                : `<button class="env-btn start" data-action="start" data-compose="${encodedPath}"><i class="ri-play-fill"></i> 启动</button>`
-            }</div></div>`;
+            <div class="env-actions"><button class="env-btn ${on ? 'stop' : 'start'}" data-action="${on ? 'stop' : 'start'}" data-compose="${ep}">
+                <i class="ri-${on ? 'stop' : 'play'}-fill"></i> ${on ? '停止' : '启动'}</button></div></div>`;
     }).join('');
 }
 
@@ -318,20 +278,17 @@ async function refreshDocker() {
     const bar = $('dockerStatusBar');
     bar.className = 'docker-status-bar';
     bar.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> 正在检查Docker状态...';
-
     const res = await apiGet('/api/docker/status');
     const tbody = $('containerBody');
-
     if (res.status === 'ok' && res.data.docker_running) {
         bar.className = 'docker-status-bar ok';
         bar.innerHTML = '<i class="ri-checkbox-circle-fill"></i> Docker运行正常';
         const cs = res.data.containers;
         tbody.innerHTML = cs.length ? cs.map(c => `<tr>
             <td><code style="color:var(--accent-cyan)">${(c.ID || '').substring(0, 12)}</code></td>
-            <td>${c.Image || ''}</td>
-            <td><span class="badge badge-success">${c.Status || ''}</span></td>
-            <td><code>${c.Ports || ''}</code></td>
-            <td>${c.Names || ''}</td></tr>`).join('') : '<tr><td colspan="5" class="table-empty">暂无运行中的容器</td></tr>';
+            <td>${c.Image || ''}</td><td><span class="badge badge-success">${c.Status || ''}</span></td>
+            <td><code>${c.Ports || ''}</code></td><td>${c.Names || ''}</td></tr>`).join('')
+            : '<tr><td colspan="5" class="table-empty">暂无运行中的容器</td></tr>';
     } else {
         bar.className = 'docker-status-bar error';
         bar.innerHTML = `<i class="ri-error-warning-fill"></i> ${res.data?.message || res.message || 'Docker不可用'}`;
@@ -346,75 +303,103 @@ async function loadDockerEnvs() {
     const res = await apiGet('/api/docker/envs');
     if (res.status !== 'ok' || !res.data.length) {
         grid.innerHTML = '<div class="loading-spinner">未找到Docker Compose环境</div>';
-        _envCache = null;
-        return;
+        _envCache = null; return;
     }
     _envCache = res.data;
     grid.innerHTML = renderEnvCards(res.data);
 }
 
-// 事件委托：处理靶机环境启动/停止按钮点击
-document.addEventListener('click', function(e) {
+document.addEventListener('click', e => {
     const btn = e.target.closest('[data-action][data-compose]');
     if (!btn) return;
-    const composePath = decodeURIComponent(btn.dataset.compose);
-    if (btn.dataset.action === 'start') startEnv(composePath);
-    else if (btn.dataset.action === 'stop') stopEnv(composePath);
+    const path = decodeURIComponent(btn.dataset.compose);
+    btn.dataset.action === 'start' ? startEnv(path) : stopEnv(path);
 });
 
 async function startEnv(composePath) {
-    const infoToast = showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 60000);
+    const t = showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 60000);
     const res = await apiPost('/api/docker/start', { compose_file: composePath });
-    dismissToast(infoToast);
-    if (res.status === 'ok') {
-        showToast(res.message || '环境启动成功', 'success', '靶机已启动');
-    } else {
-        const t = res.error_type || '';
-        const titles = { docker_daemon: 'Docker服务不可用', sandbox_limit: '沙箱环境限制', rate_limit: 'Docker Hub限流', timeout: '操作超时' };
-        showToast(res.message || '启动失败', 'error', titles[t] || '启动失败', t === 'sandbox_limit' ? 12000 : t === 'docker_daemon' ? 8000 : 5000);
-    }
+    dismissToast(t);
+    const errTitles = { docker_daemon: 'Docker服务不可用', sandbox_limit: '沙箱环境限制', rate_limit: 'Docker Hub限流', timeout: '操作超时' };
+    if (res.status === 'ok') showToast(res.message || '环境启动成功', 'success', '靶机已启动');
+    else showToast(res.message || '启动失败', 'error', errTitles[res.error_type] || '启动失败');
     refreshDocker();
 }
 
 async function stopEnv(composePath) {
     if (!await showConfirm('确定要停止这个靶机环境吗？所有相关容器和卷将被移除。', '停止靶机')) return;
-    const infoToast = showToast('正在停止靶机环境...', 'info', '停止中', 60000);
+    const t = showToast('正在停止靶机环境...', 'info', '停止中', 60000);
     const res = await apiPost('/api/docker/stop', { compose_file: composePath });
-    dismissToast(infoToast);
+    dismissToast(t);
     showToast(res.message || (res.status === 'ok' ? '环境已停止' : '停止失败'), res.status === 'ok' ? 'success' : 'error', res.status === 'ok' ? '靶机已停止' : '操作失败');
     refreshDocker();
 }
 
 // ==================== 测试报告 ====================
+let _allResults = [], _sortDesc = true;
+
 async function loadResults() {
     const res = await apiGet('/api/results');
-    const tbody = $('resultBody');
-
     if (res.status !== 'ok' || !res.data.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="table-empty">暂无测试记录</td></tr>';
+        _allResults = []; window._results = [];
+        $('resultBody').innerHTML = '<tr><td colspan="6" class="table-empty">暂无测试记录</td></tr>';
         $('historyCountBadge').textContent = '0 条';
-        loadAnalytics([], null);
-        return;
+        loadAnalytics([], null); return;
     }
-    const data = res.data;
-    $('historyCountBadge').textContent = `${data.length} 条`;
-    tbody.innerHTML = data.map((r, i) => {
-        const ok = r.flag === 'success';
-        return `<tr>
+    _allResults = res.data; window._results = _allResults;
+    const input = $('historySearch'); if (input) input.value = '';
+    renderResultsTable(_allResults);
+    const statsRes = await apiGet('/api/results/stats');
+    loadAnalytics(_allResults, statsRes.status === 'ok' ? statsRes.data : null);
+}
+
+function renderResultsTable(data) {
+    const sorted = [...data].sort((a, b) => {
+        const ta = a.timestamp || '', tb = b.timestamp || '';
+        return _sortDesc ? tb.localeCompare(ta) : ta.localeCompare(tb);
+    });
+    $('historyCountBadge').textContent = `${sorted.length} 条`;
+    if (!sorted.length) { $('resultBody').innerHTML = '<tr><td colspan="6" class="table-empty">未找到匹配记录</td></tr>'; return; }
+    $('resultBody').innerHTML = sorted.map(r => {
+        const i = _allResults.indexOf(r), ok = r.flag === 'success';
+        const ts = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '-';
+        return `<tr><td><span style="color:var(--text-muted);font-size:12px;white-space:nowrap"><i class="ri-time-line" style="margin-right:3px"></i>${ts}</span></td>
             <td><code style="color:var(--accent-cyan)">${r.source_file || `test_${i}`}</code></td>
             <td>${r.model || 'N/A'}</td>
             <td><span class="badge ${ok ? 'badge-success' : 'badge-danger'}">${ok ? '✓ 成功' : '✗ 失败'}</span></td>
             <td>${r.runtime ? r.runtime.toFixed(1) + 's' : 'N/A'}</td>
             <td><button class="btn btn-sm" onclick="showResultDetail(${i})"><i class="ri-eye-line"></i></button></td></tr>`;
     }).join('');
-    window._results = data;
-    const statsRes = await apiGet('/api/results/stats');
-    loadAnalytics(data, statsRes.status === 'ok' ? statsRes.data : null);
+}
+
+function filterResults() {
+    const input = $('historySearch'), clearBtn = $('historySearchClear');
+    const kw = (input?.value || '').toLowerCase().trim();
+    clearBtn?.classList.toggle('visible', kw.length > 0);
+    if (!kw) { renderResultsTable(_allResults); return; }
+    renderResultsTable(_allResults.filter(r =>
+        (r.source_file || '').toLowerCase().includes(kw) ||
+        (r.model || '').toLowerCase().includes(kw) ||
+        (r.flag === 'success' ? '成功 success' : '失败 failed').includes(kw)));
+}
+
+function clearSearch() {
+    const input = $('historySearch');
+    if (input) { input.value = ''; input.focus(); }
+    $('historySearchClear')?.classList.remove('visible');
+    renderResultsTable(_allResults);
+}
+
+function toggleSortOrder() {
+    _sortDesc = !_sortDesc;
+    $('sortIcon').className = _sortDesc ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line';
+    $('sortLabel').textContent = _sortDesc ? '最新优先' : '最早优先';
+    $('historySortBtn').classList.toggle('asc', !_sortDesc);
+    filterResults();
 }
 
 function loadAnalytics(results, stats) {
-    const total = results.length;
-    const sc = results.filter(r => r.flag === 'success').length;
+    const total = results.length, sc = results.filter(r => r.flag === 'success').length;
     $('analyticSuccess').textContent = sc;
     $('analyticFailed').textContent = total - sc;
     $('analyticRate').textContent = (total > 0 ? Math.round(sc / total * 100) : 0) + '%';
@@ -429,10 +414,9 @@ function renderTypeDistChart(stats) {
     const types = stats.type_stats, max = Math.max(...Object.values(types).map(v => v.total), 1);
     el.innerHTML = Object.entries(types).map(([name, d]) => `<div class="chart-bar-row">
         <span class="chart-bar-label" title="${name}">${name}</span>
-        <div class="chart-bar-track">
-            <div class="chart-bar-fill total" style="width:${(d.total/max*100).toFixed(0)}%"></div>
-            <div class="chart-bar-fill success" style="width:${(d.success/max*100).toFixed(0)}%;position:absolute;top:0;left:0;height:100%;opacity:0.8"></div>
-        </div><span class="chart-bar-value">${d.success}/${d.total}</span></div>`).join('');
+        <div class="chart-bar-track"><div class="chart-bar-fill total" style="width:${(d.total/max*100).toFixed(0)}%"></div>
+            <div class="chart-bar-fill success" style="width:${(d.success/max*100).toFixed(0)}%;position:absolute;top:0;left:0;height:100%;opacity:0.8"></div></div>
+        <span class="chart-bar-value">${d.success}/${d.total}</span></div>`).join('');
 }
 
 function renderTrendChart(results) {
@@ -452,21 +436,21 @@ function showResultDetail(index) {
     const r = window._results[index];
     if (!r) return;
     const ok = r.flag === 'success';
+    const ts = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN') : '未知';
     $('modalTitle').textContent = `测试详情 - ${r.source_file || ''}`;
     let html = `<div style="margin-bottom:12px">
         <span class="badge ${ok ? 'badge-success' : 'badge-danger'}" style="font-size:13px;padding:5px 14px">${ok ? '✓ 渗透成功' : '✗ 渗透失败'}</span>
         <span class="badge badge-info" style="margin-left:8px">${r.model || 'N/A'}</span></div>
-        <p style="margin-bottom:12px">耗时: <strong>${r.runtime ? r.runtime.toFixed(1)+'s' : 'N/A'}</strong></p>`;
-    if (r.commands?.length) {
+        <p style="margin-bottom:8px"><i class="ri-calendar-line" style="margin-right:4px;color:var(--accent-cyan)"></i>时间: <strong>${ts}</strong></p>
+        <p style="margin-bottom:12px"><i class="ri-timer-line" style="margin-right:4px;color:var(--accent-cyan)"></i>耗时: <strong>${r.runtime ? r.runtime.toFixed(1)+'s' : 'N/A'}</strong></p>`;
+    if (r.commands?.length)
         html += `<h4 style="margin:16px 0 8px;color:var(--text-primary)">执行命令</h4>
             <div style="background:var(--bg-input);padding:12px;border-radius:8px;font-family:var(--font-mono);font-size:12px;max-height:200px;overflow-y:auto">
             ${r.commands.map(c => `<div style="padding:2px 0;color:var(--accent-green)">$ ${escapeHtml(String(c))}</div>`).join('')}</div>`;
-    }
-    if (r.history?.length) {
+    if (r.history?.length)
         html += `<h4 style="margin:16px 0 8px;color:var(--text-primary)">执行历史</h4>
             <div style="background:var(--bg-input);padding:12px;border-radius:8px;font-family:var(--font-mono);font-size:11px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-secondary)">
             ${r.history.map(h => escapeHtml(String(h))).join('\n---\n')}</div>`;
-    }
     $('modalBody').innerHTML = html;
     $('modalOverlay').classList.add('active');
 }
@@ -480,12 +464,10 @@ async function loadConfig() {
     $('cfgApiKey').value = c.ai?.openai_key || '';
     $('cfgTemp').value = c.ai?.temperature || 0.5;
     $('cfgTempVal').textContent = c.ai?.temperature || 0.5;
-
     const cur = (c.test?.models || [])[0] || 'gpt4omini';
     const sel = $('cfgModel'), custom = $('cfgModelCustom');
     if (PRESET_MODELS.includes(cur)) { sel.value = cur; custom.style.display = 'none'; }
     else { sel.value = '__custom__'; custom.value = cur; custom.style.display = 'block'; }
-
     $('cfgSysIter').value = c.psm?.sys_iterations || 15;
     $('cfgExpIter').value = c.psm?.exp_iterations || 3;
     $('cfgQueryIter').value = c.psm?.query_iterations || 1;
@@ -497,8 +479,7 @@ function onCfgModelChange() { $('cfgModelCustom').style.display = $('cfgModel').
 
 async function saveConfig() {
     const modelName = $('cfgModel').value === '__custom__' ? $('cfgModelCustom').value.trim() : $('cfgModel').value;
-    if (!modelName) { showToast('请输入自定义模型名称', 'warning', '参数缺失'); return; }
-
+    if (!modelName) return showToast('请输入自定义模型名称', 'warning', '参数缺失');
     const cur = await apiGet('/api/config');
     const base = cur.status === 'ok' ? cur.data : {};
     const config = {
@@ -533,7 +514,7 @@ function showToast(message, type = 'success', title = '', duration = 4000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<div class="toast-icon"><i class="${icons[type] || icons.info}"></i></div>
-        <div class="toast-content"><div class="toast-title">${title || titles[type] || '提示'}</div><div class="toast-message">${escapeHtml(message)}</div></div>
+        <div class="toast-content"><div class="toast-title">${title || titles[type]}</div><div class="toast-message">${escapeHtml(message)}</div></div>
         <button class="toast-close" onclick="dismissToast(this.parentElement)"><i class="ri-close-line"></i></button>
         <div class="toast-progress" style="animation-duration:${duration}ms"></div>`;
     c.appendChild(toast);

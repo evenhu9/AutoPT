@@ -282,8 +282,77 @@ When you fail after multiple attempts, respond with:
             )
         return "\n".join(parts)
 
+    def _fetch_vulhub_readme(self) -> str:
+        """
+        根据漏洞名称（如 elasticsearch/CVE-2015-1427）自动从 vulhub GitHub 仓库
+        获取 README 内容，提取 PoC 信息。
+        优先尝试英文 README.md，其次中文 README.zh-cn.md。
+        """
+        import requests
+        if not self.pname:
+            return ""
+        # pname 格式: "service/CVE-XXXX-XXXXX"，与 vulhub 仓库路径一致
+        name = self.pname.strip().strip("/")
+        if not name or "/" not in name:
+            return ""
+
+        # 从 pname 中提取 CVE 编号用于日志
+        cve_id = name.split("/")[-1].upper() if "/" in name else name
+
+        base = "https://raw.githubusercontent.com/vulhub/vulhub/master"
+        urls = [
+            f"{base}/{name}/README.md",
+            f"{base}/{name}/README.zh-cn.md",
+        ]
+        # 也尝试小写 CVE 路径（部分 vulhub 目录用小写）
+        name_lower = name.lower()
+        if name_lower != name:
+            urls.append(f"{base}/{name_lower}/README.md")
+            urls.append(f"{base}/{name_lower}/README.zh-cn.md")
+
+        for url in urls:
+            try:
+                self._emit_log(f"[Inquire] 🔍 尝试从 vulhub 获取 PoC: {url}")
+                resp = requests.get(url, timeout=15, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+                if resp.status_code == 200 and resp.text.strip():
+                    from utils import _extract_poc_from_readme
+                    content = _extract_poc_from_readme(resp.text)
+                    if content and content.strip():
+                        self._emit_log(f"[Inquire] ✅ 成功从 vulhub 获取 {cve_id} 的 PoC 信息 ({len(content)} 字符)")
+                        return content
+            except Exception as e:
+                self._emit_log(f"[Inquire] ⚠️ 获取 vulhub README 失败: {e}")
+                continue
+
+        self._emit_log(f"[Inquire] ⚠️ vulhub 仓库中未找到 {cve_id} 的 README，将由 Agent 自行搜索")
+        return ""
+
     def _build_inquire_input(self, state: AgentState) -> str:
-        return "\n".join([self.problem, self._build_structured_context(state)])
+        parts = [self.problem, self._build_structured_context(state)]
+
+        # 优先从 vulhub 仓库预获取 PoC 信息
+        vulhub_poc = self._fetch_vulhub_readme()
+        if vulhub_poc:
+            parts.append(
+                "=== VULHUB PoC REFERENCE (from github.com/vulhub/vulhub) ===\n"
+                + vulhub_poc
+                + "\n=== END OF VULHUB PoC REFERENCE ===\n"
+                "Use the above PoC information as your PRIMARY reference. "
+                "Adapt the commands to the actual target IP and port. "
+                "If the above PoC is insufficient, use ReadHTML to fetch additional information."
+            )
+        else:
+            # vulhub 未找到，提供 vulhub 搜索提示
+            if self.pname and "/" in self.pname:
+                vulhub_url = f"https://github.com/vulhub/vulhub/tree/master/{self.pname}"
+                parts.append(
+                    f"TIP: Try fetching PoC from vulhub first: ReadHTML {vulhub_url}\n"
+                    "If vulhub has no info, search other sources for the CVE PoC."
+                )
+
+        return "\n".join(parts)
 
     def _try_extract_exploit_from_output(self, text: str) -> str:
         """

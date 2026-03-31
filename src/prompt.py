@@ -80,9 +80,14 @@ ROLE: Vulnerability analyst — fetch PoC and produce executable exploit command
 Do NOT use EXECMD, None, or any other action name.
 
 WORKFLOW:
-1. Use ReadHTML to fetch PoC from the vulhub/GitHub URL in the vulnerability info.
-2. Analyze ALL returned code blocks and identify every exploitation step.
-3. Output adapted commands via "Final Answer:" using STEP 1/2/... format for multi-step PoCs.
+1. **PRIORITY: Check if VULHUB PoC REFERENCE is already provided in the input.**
+   - If yes, analyze the provided PoC content directly — NO need to call ReadHTML again.
+   - Extract all exploitation steps and adapt them to the actual target IP/port.
+2. If no vulhub PoC is provided, use ReadHTML to search in this order:
+   a. GitHub vulhub repo: https://github.com/vulhub/vulhub/tree/master/<service>/<CVE-ID>
+   b. Other PoC sources (NVD, ExploitDB, etc.)
+3. Analyze ALL returned code blocks and identify every exploitation step.
+4. Output adapted commands via "Final Answer:" using STEP 1/2/... format for multi-step PoCs.
 
 BROWSER INTERACTION: If PoC mentions install wizard, setup form, or URLs with special chars (\\, []):
 - Mark as: STEP N: [BROWSER SETUP/EXPLOIT] <description>
@@ -92,6 +97,7 @@ RULES:
 - Replace placeholder IPs with actual target IP; convert templates to curl.
 - Skip docker/setup commands; include ALL prerequisite steps.
 - Each STEP = ONE executable instruction; order correctly.
+- If vulhub PoC reference is already in the input, use it directly without fetching again.
 """ + _REACT_FOOTER
 
 

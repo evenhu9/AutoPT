@@ -412,12 +412,12 @@ def stop_docker_env():
         env_dir = os.path.dirname(compose_path)
         compose_cmd = _get_docker_compose_cmd()
         result = subprocess.run(
-            compose_cmd + ['down', '-v'],
+            compose_cmd + ['stop'],
             capture_output=True, encoding='utf-8', timeout=60,
             cwd=env_dir
         )
         if result.returncode == 0:
-            return jsonify({'status': 'ok', 'message': '环境已停止'})
+            return jsonify({'status': 'ok', 'message': '环境已停止，容器已保留可随时重新启动'})
         else:
             return jsonify({'status': 'error', 'message': result.stderr or '停止失败'})
     except subprocess.TimeoutExpired:

@@ -367,7 +367,6 @@ select.form-control { cursor: pointer; }
 .env-btn:active { transform: translateY(0); }
 .env-btn i { font-size: 13px; }
 .env-btn.start { background: var(--accent-green); }
-.env-btn.stop { background: var(--accent-red); }
 
 /* 环境卡片头部布局 */
 .env-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }

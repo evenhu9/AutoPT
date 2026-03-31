@@ -280,8 +280,7 @@ function renderEnvCards(envs) {
                     </div>
                 </div>
             </div>
-            <div class="env-actions"><button class="env-btn ${on ? 'stop' : 'start'}" data-action="${on ? 'stop' : 'start'}" data-compose="${ep}">
-                <i class="ri-${on ? 'stop' : 'play'}-fill"></i> ${on ? '停止' : '启动'}</button></div></div>`;
+            <div class="env-actions">${on ? '' : `<button class="env-btn start" data-action="start" data-compose="${ep}"><i class="ri-play-fill"></i> 启动</button>`}</div></div>`;
     }).join('');
 }
 
@@ -324,7 +323,7 @@ document.addEventListener('click', e => {
     const btn = e.target.closest('[data-action][data-compose]');
     if (!btn) return;
     const path = decodeURIComponent(btn.dataset.compose);
-    btn.dataset.action === 'start' ? startEnv(path) : stopEnv(path);
+    if (btn.dataset.action === 'start') startEnv(path);
 });
 
 async function startEnv(composePath) {
@@ -342,7 +341,7 @@ async function startEnv(composePath) {
 }
 
 async function stopEnv(composePath) {
-    if (!await showConfirm('确定要停止这个靶机环境吗？所有相关容器和卷将被移除。', '停止靶机')) return;
+    if (!await showConfirm('确定要停止这个靶机环境吗？容器将被保留，可随时重新启动。', '停止靶机')) return;
     const t = showToast('正在停止靶机环境...', 'info', '停止中', 60000);
     const res = await apiPost('/api/docker/stop', { compose_file: composePath });
     dismissToast(t);

@@ -265,9 +265,21 @@ function renderEnvSkeleton(n = 6) {
 function renderEnvCards(envs) {
     return envs.map(env => {
         const on = env.status === 'running', ep = encodeURIComponent(env.compose_file);
-        return `<div class="env-item ${on ? 'env-running' : ''}"><div class="env-info">
-            <div class="env-title-row"><span class="env-status-dot ${on ? 'running' : 'stopped'}"></span><span class="env-name">${env.name}</span></div>
-            <div class="env-path">${escapeHtml(env.compose_file)}</div></div>
+        return `<div class="env-item ${on ? 'env-running' : ''}">
+            <div class="env-item-header">
+                <div class="env-info">
+                    <div class="env-title-row"><span class="env-status-dot ${on ? 'running' : 'stopped'}"></span><span class="env-name">${env.name}</span></div>
+                    <div class="env-path">${escapeHtml(env.compose_file)}</div>
+                </div>
+                <div class="env-menu-wrap">
+                    <button class="env-menu-btn" data-menu-toggle="${ep}" onclick="toggleEnvMenu(event, '${ep}')" ${on ? '' : 'disabled'}><i class="ri-more-2-fill"></i></button>
+                    <div class="env-dropdown" id="envMenu_${ep}">
+                        <div class="env-dropdown-item" onclick="stopEnvFromMenu('${ep}', event)"><i class="ri-stop-circle-line"></i><span>停止环境</span></div>
+                        <div class="env-dropdown-divider"></div>
+                        <div class="env-dropdown-item danger" onclick="destroyEnvFromMenu('${ep}', event)"><i class="ri-delete-bin-line"></i><span>销毁环境</span></div>
+                    </div>
+                </div>
+            </div>
             <div class="env-actions"><button class="env-btn ${on ? 'stop' : 'start'}" data-action="${on ? 'stop' : 'start'}" data-compose="${ep}">
                 <i class="ri-${on ? 'stop' : 'play'}-fill"></i> ${on ? '停止' : '启动'}</button></div></div>`;
     }).join('');
@@ -316,12 +328,16 @@ document.addEventListener('click', e => {
 });
 
 async function startEnv(composePath) {
-    const t = showToast('正在启动靶机环境，镜像拉取可能较慢，请耐心等候...', 'info', '启动中', 60000);
+    const t = showToast('正在启动靶机环境，若镜像不存在将自动拉取创建，请耐心等候...', 'info', '启动中', 60000);
     const res = await apiPost('/api/docker/start', { compose_file: composePath });
     dismissToast(t);
     const errTitles = { docker_daemon: 'Docker服务不可用', sandbox_limit: '沙箱环境限制', rate_limit: 'Docker Hub限流', timeout: '操作超时' };
-    if (res.status === 'ok') showToast(res.message || '环境启动成功', 'success', '靶机已启动');
-    else showToast(res.message || '启动失败', 'error', errTitles[res.error_type] || '启动失败');
+    if (res.status === 'ok') {
+        const title = res.created ? '靶机已创建并启动' : '靶机已启动';
+        showToast(res.message || '环境启动成功', 'success', title);
+    } else {
+        showToast(res.message || '启动失败', 'error', errTitles[res.error_type] || '启动失败');
+    }
     refreshDocker();
 }
 
@@ -331,6 +347,46 @@ async function stopEnv(composePath) {
     const res = await apiPost('/api/docker/stop', { compose_file: composePath });
     dismissToast(t);
     showToast(res.message || (res.status === 'ok' ? '环境已停止' : '停止失败'), res.status === 'ok' ? 'success' : 'error', res.status === 'ok' ? '靶机已停止' : '操作失败');
+    refreshDocker();
+}
+
+// ===== 环境卡片三点菜单 =====
+function toggleEnvMenu(e, ep) {
+    e.stopPropagation();
+    // 关闭所有其他已打开的菜单
+    document.querySelectorAll('.env-dropdown.active').forEach(d => {
+        if (d.id !== `envMenu_${ep}`) d.classList.remove('active');
+    });
+    const menu = document.getElementById(`envMenu_${ep}`);
+    if (menu) menu.classList.toggle('active');
+}
+
+// 全局点击关闭下拉菜单
+document.addEventListener('click', e => {
+    if (!e.target.closest('.env-menu-wrap')) {
+        document.querySelectorAll('.env-dropdown.active').forEach(d => d.classList.remove('active'));
+    }
+});
+
+function stopEnvFromMenu(ep, e) {
+    e.stopPropagation();
+    document.querySelectorAll('.env-dropdown.active').forEach(d => d.classList.remove('active'));
+    stopEnv(decodeURIComponent(ep));
+}
+
+async function destroyEnvFromMenu(ep, e) {
+    e.stopPropagation();
+    document.querySelectorAll('.env-dropdown.active').forEach(d => d.classList.remove('active'));
+    const composePath = decodeURIComponent(ep);
+    if (!await showConfirm('确定要彻底销毁这个靶机环境吗？\n将移除所有容器、数据卷和关联镜像，此操作不可恢复。', '销毁环境')) return;
+    const t = showToast('正在销毁靶机环境，清理镜像中...', 'info', '销毁中', 120000);
+    const res = await apiPost('/api/docker/destroy', { compose_file: composePath });
+    dismissToast(t);
+    showToast(
+        res.message || (res.status === 'ok' ? '环境已销毁' : '销毁失败'),
+        res.status === 'ok' ? 'success' : 'error',
+        res.status === 'ok' ? '环境已销毁' : '操作失败'
+    );
     refreshDocker();
 }
 

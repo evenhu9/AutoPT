@@ -319,6 +319,31 @@ def _detect_env_status(compose_file, compose_dir, running_containers, all_contai
     return 'stopped'
 
 
+def _check_env_exists(compose_cmd, env_dir):
+    """检查 docker compose 环境的镜像/容器是否已存在"""
+    try:
+        # 检查是否有已创建的容器（包括停止的）
+        result = subprocess.run(
+            compose_cmd + ['ps', '-a', '--format', 'json'],
+            capture_output=True, encoding='utf-8', timeout=10,
+            cwd=env_dir
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return True
+
+        # 也检查 docker compose images
+        result2 = subprocess.run(
+            compose_cmd + ['images', '--format', 'json'],
+            capture_output=True, encoding='utf-8', timeout=10,
+            cwd=env_dir
+        )
+        if result2.returncode == 0 and result2.stdout.strip():
+            return True
+    except:
+        pass
+    return False
+
+
 @app.route('/api/docker/start', methods=['POST'])
 def start_docker_env():
     data = request.json
@@ -334,13 +359,26 @@ def start_docker_env():
     try:
         env_dir = os.path.dirname(compose_path)
         compose_cmd = _get_docker_compose_cmd()
+
+        # 检查环境是否已存在
+        env_exists = _check_env_exists(compose_cmd, env_dir)
+        action_msg = '环境启动成功' if env_exists else '环境创建并启动成功'
+
+        # docker compose up -d 会自动处理创建和启动
+        # 不存在时会自动 pull/build 镜像并创建容器
+        # 已存在时会直接启动
         result = subprocess.run(
             compose_cmd + ['up', '-d'],
             capture_output=True, encoding='utf-8', timeout=300,
             cwd=env_dir
         )
         if result.returncode == 0:
-            return jsonify({'status': 'ok', 'message': '环境启动成功', 'output': result.stdout})
+            return jsonify({
+                'status': 'ok',
+                'message': action_msg,
+                'output': result.stdout,
+                'created': not env_exists
+            })
         else:
             error_msg = result.stderr or ''
             if 'Cannot connect' in error_msg:
@@ -388,7 +426,36 @@ def stop_docker_env():
         return jsonify({'status': 'error', 'message': str(e)})
 
 
-# ==================== 渗透测试任务 ====================
+@app.route('/api/docker/destroy', methods=['POST'])
+def destroy_docker_env():
+    """销毁环境：停止容器、移除容器和卷、删除镜像"""
+    data = request.json
+    compose_path = data.get('compose_file', '')
+
+    if not compose_path or not os.path.exists(compose_path):
+        return jsonify({'status': 'error', 'message': '无效的compose文件路径'})
+
+    daemon_ok, daemon_msg = _check_docker_daemon()
+    if not daemon_ok:
+        return jsonify({'status': 'error', 'message': daemon_msg, 'error_type': 'docker_daemon'})
+
+    try:
+        env_dir = os.path.dirname(compose_path)
+        compose_cmd = _get_docker_compose_cmd()
+        # down -v --rmi all: 停止容器、移除容器、移除卷、删除关联镜像
+        result = subprocess.run(
+            compose_cmd + ['down', '-v', '--rmi', 'all'],
+            capture_output=True, encoding='utf-8', timeout=120,
+            cwd=env_dir
+        )
+        if result.returncode == 0:
+            return jsonify({'status': 'ok', 'message': '环境已彻底销毁（容器、卷及镜像已移除）'})
+        else:
+            return jsonify({'status': 'error', 'message': result.stderr or '销毁失败'})
+    except subprocess.TimeoutExpired:
+        return jsonify({'status': 'error', 'message': '环境销毁超时'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 @app.route('/api/task/start', methods=['POST'])
 def start_task():
     """启动渗透测试任务 - 直接在进程内调用引擎"""

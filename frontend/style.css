@@ -460,6 +460,32 @@ select.form-control { cursor: pointer; }
 .analytics-chart-section { background: var(--bg-input); border-radius: 10px; padding: 16px; }
 .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
 .chart-title i { font-size: 16px; color: var(--accent-cyan); }
+/* 成功率分析面板（合并难度+模型） */
+.success-rate-section { grid-column: 1 / -1; }
+.chart-title-bar {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+}
+.chart-title-bar .chart-title { margin-bottom: 0; }
+.rate-tabs {
+    display: flex; gap: 4px; padding: 3px; background: rgba(255,255,255,0.04);
+    border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);
+}
+.rate-tab {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px;
+    border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+    font-family: var(--font-sans); cursor: pointer; transition: all 0.25s ease;
+    background: transparent; color: var(--text-muted); white-space: nowrap;
+}
+.rate-tab i { font-size: 14px; }
+.rate-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
+.rate-tab.active {
+    background: rgba(59,130,246,0.15); color: var(--accent-blue);
+    box-shadow: 0 2px 8px rgba(59,130,246,0.15);
+}
+.rate-tab-content { display: none; animation: rateTabFadeIn 0.3s ease; }
+.rate-tab-content.active { display: block; }
+@keyframes rateTabFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
 /* 难度成功率 */
 .difficulty-rate-panel { display: flex; flex-direction: column; gap: 14px; }
 .diff-rate-item { display: flex; flex-direction: column; gap: 6px; }
@@ -471,7 +497,6 @@ select.form-control { cursor: pointer; }
 .diff-rate-detail { font-size: 11px; color: var(--text-muted); }
 
 /* 模型成功率 */
-.model-rate-section { grid-column: 1 / -1; }
 .model-rate-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .model-rate-item {
     display: flex; flex-direction: column; gap: 6px;
@@ -514,7 +539,7 @@ select.form-control { cursor: pointer; }
 .token-metric-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
 /* Token 难度对比 */
-.token-diff-section { margin-bottom: 18px; }
+.token-diff-section { margin-bottom: 0; }
 .token-section-title {
     font-size: 12px; font-weight: 600; color: var(--text-secondary);
     margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
@@ -572,6 +597,90 @@ select.form-control { cursor: pointer; }
 .cost-cell.cost-high { background: rgba(239,68,68,0.12); color: #ef4444; }
 .cost-cell.cost-mid { background: rgba(245,158,11,0.12); color: #f59e0b; }
 .cost-cell.cost-low { background: rgba(16,185,129,0.12); color: #10b981; }
+
+/* 工具调用统计 */
+.tool-call-section { grid-column: 1 / -1; }
+.tool-call-overview {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px;
+}
+.tool-call-metric {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.tool-call-metric:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.tool-call-metric.tool-call-metric-highlight {
+    background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.2);
+    box-shadow: 0 0 20px rgba(139,92,246,0.06);
+}
+.tool-call-metric.tool-call-metric-highlight .tool-call-metric-value { color: #8b5cf6; font-size: 22px; }
+.tool-call-metric-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.tool-call-metric-info { display: flex; flex-direction: column; }
+.tool-call-metric-value { font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.tool-call-metric-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* 工具类型分布 */
+.tool-type-section { margin-bottom: 18px; }
+.tool-type-title {
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+}
+.tool-type-list { display: flex; flex-direction: column; gap: 8px; }
+.tool-type-row {
+    display: grid; grid-template-columns: 140px 1fr auto; gap: 10px; align-items: center;
+    padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.04); transition: background 0.2s, border-color 0.2s;
+}
+.tool-type-row:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+.tool-type-info { display: flex; align-items: center; gap: 8px; }
+.tool-type-icon { font-size: 16px; width: 20px; text-align: center; }
+.tool-type-name { font-size: 13px; font-weight: 600; color: var(--text-primary); font-family: var(--font-mono); }
+.tool-type-pct { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.tool-type-bar-wrap { height: 8px; border-radius: 4px; background: rgba(100,116,139,0.1); overflow: hidden; }
+.tool-type-bar { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); min-width: 4px; }
+.tool-type-count { font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); min-width: 36px; text-align: right; }
+
+/* 工具调用难度对比 */
+.tool-diff-section { margin-bottom: 0; }
+.tool-diff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.tool-diff-card {
+    padding: 16px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative; overflow: hidden;
+}
+.tool-diff-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--card-color); opacity: 0.8;
+}
+.tool-diff-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.12); }
+.tool-diff-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.tool-diff-card-header i { font-size: 18px; }
+.tool-diff-card-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.tool-diff-card-value { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; font-family: var(--font-mono); }
+.tool-diff-card-value small { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.tool-diff-card-detail { display: flex; flex-direction: column; gap: 4px; }
+.tool-diff-card-detail span { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+.tool-diff-card-detail i { font-size: 13px; color: var(--text-muted); }
+
+/* 工具调用模型对比 */
+.tool-model-section { margin-top: 0; }
+.tool-model-list { display: flex; flex-direction: column; gap: 10px; }
+.tool-model-row {
+    display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 12px; align-items: center;
+    padding: 10px 14px; background: rgba(255,255,255,0.02); border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.04); transition: background 0.2s, border-color 0.2s;
+}
+.tool-model-row:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+.tool-model-info { display: flex; flex-direction: column; gap: 2px; }
+.tool-model-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.tool-model-meta { font-size: 11px; color: var(--text-muted); }
+.tool-model-bar-wrap { height: 8px; border-radius: 4px; background: rgba(100,116,139,0.1); overflow: hidden; }
+.tool-model-bar { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); min-width: 4px; }
+.tool-model-avg { font-size: 16px; font-weight: 700; font-family: var(--font-mono); min-width: 40px; text-align: right; }
 
 /* 控制台 Token 卡片颜色 */
 .stat-card[data-color="orange"]::before { background: linear-gradient(135deg, #f59e0b, #f97316); }

@@ -261,6 +261,71 @@ def get_stats():
         'difficulty_token_stats': difficulty_token_stats,
     }
 
+    # 工具调用次数统计
+    total_tool_calls = 0
+    model_tool_stats = {}
+    difficulty_tool_stats = {'Simple': {'total_calls': 0, 'count': 0}, 'Complex': {'total_calls': 0, 'count': 0}}
+    tool_type_counter = {}  # 统计各类工具的调用频次
+
+    for r in results:
+        cmds = r.get('commands', [])
+        n_calls = len(cmds)
+        total_tool_calls += n_calls
+
+        # 按模型统计
+        model = r.get('model', 'Unknown')
+        if model not in model_tool_stats:
+            model_tool_stats[model] = {'total_calls': 0, 'count': 0}
+        model_tool_stats[model]['total_calls'] += n_calls
+        model_tool_stats[model]['count'] += 1
+
+        # 按难度统计
+        source = r.get('source_file', '')
+        for vkey, diff in vuln_diff_map.items():
+            if vkey in source and diff in difficulty_tool_stats:
+                difficulty_tool_stats[diff]['total_calls'] += n_calls
+                difficulty_tool_stats[diff]['count'] += 1
+                break
+
+        # 统计工具类型
+        for cmd in cmds:
+            cmd_str = str(cmd).strip().lower()
+            if 'nmap' in cmd_str:
+                tool_type_counter['nmap'] = tool_type_counter.get('nmap', 0) + 1
+            elif 'xray' in cmd_str:
+                tool_type_counter['xray'] = tool_type_counter.get('xray', 0) + 1
+            elif 'curl' in cmd_str:
+                tool_type_counter['curl'] = tool_type_counter.get('curl', 0) + 1
+            elif 'sqlmap' in cmd_str:
+                tool_type_counter['sqlmap'] = tool_type_counter.get('sqlmap', 0) + 1
+            elif 'nikto' in cmd_str:
+                tool_type_counter['nikto'] = tool_type_counter.get('nikto', 0) + 1
+            elif 'metasploit' in cmd_str or 'msfconsole' in cmd_str:
+                tool_type_counter['metasploit'] = tool_type_counter.get('metasploit', 0) + 1
+            elif 'python' in cmd_str:
+                tool_type_counter['python'] = tool_type_counter.get('python', 0) + 1
+            elif 'cat ' in cmd_str or 'ls ' in cmd_str or 'grep ' in cmd_str:
+                tool_type_counter['shell'] = tool_type_counter.get('shell', 0) + 1
+            else:
+                tool_type_counter['other'] = tool_type_counter.get('other', 0) + 1
+
+    # 计算平均值
+    for m in model_tool_stats:
+        cnt = model_tool_stats[m]['count']
+        model_tool_stats[m]['avg_calls'] = round(model_tool_stats[m]['total_calls'] / cnt, 1) if cnt > 0 else 0
+
+    for d in difficulty_tool_stats:
+        cnt = difficulty_tool_stats[d]['count']
+        difficulty_tool_stats[d]['avg_calls'] = round(difficulty_tool_stats[d]['total_calls'] / cnt, 1) if cnt > 0 else 0
+
+    tool_call_stats = {
+        'total_calls': total_tool_calls,
+        'avg_calls_per_test': round(total_tool_calls / total_tests, 1) if total_tests > 0 else 0,
+        'model_tool_stats': model_tool_stats,
+        'difficulty_tool_stats': difficulty_tool_stats,
+        'tool_type_distribution': dict(sorted(tool_type_counter.items(), key=lambda x: x[1], reverse=True)),
+    }
+
     return jsonify({
         'status': 'ok',
         'data': {
@@ -274,6 +339,7 @@ def get_stats():
             'difficulty_stats': difficulty_stats,
             'model_stats': model_stats,
             'token_stats': token_stats,
+            'tool_call_stats': tool_call_stats,
         }
     })
 

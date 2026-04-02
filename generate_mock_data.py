@@ -171,14 +171,59 @@ def generate_history(vuln_name, target, port, success):
 
 
 def generate_commands(vuln_name, target, port):
-    """生成模拟的执行命令列表"""
+    """生成模拟的执行命令列表（5-15个命令，涵盖多种工具类型）"""
     cmds = []
-    # 侦察命令
-    cmds.append(random.choice(RECON_COMMANDS).format(target=target, port=port))
-    # 利用命令
+
+    # 阶段1：侦察扫描（2-4个命令）
+    recon_pool = [
+        f"nmap -sV -p 1-10000 {target}",
+        f"nmap -sC -sV -O {target}",
+        f"nmap -sU --top-ports 100 {target}",
+        f"nmap --script=vuln {target} -p {port}",
+        f"curl -s -o /dev/null -w '%{{http_code}}' http://{target}:{port}",
+        f"curl -sI http://{target}:{port}",
+        f"nikto -h http://{target}:{port} -Tuning 1234567890",
+        f"whatweb http://{target}:{port}",
+        f"dirsearch -u http://{target}:{port} -e php,asp,html,jsp -t 50",
+        f"gobuster dir -u http://{target}:{port} -w /usr/share/wordlists/dirb/common.txt",
+    ]
+    cmds.extend(random.sample(recon_pool, random.randint(2, 4)))
+
+    # 阶段2：信息收集（1-3个命令）
+    info_pool = [
+        f"curl -s http://{target}:{port}/robots.txt",
+        f"curl -s http://{target}:{port}/sitemap.xml",
+        f"curl -s http://{target}:{port}/.env",
+        f"curl -s http://{target}:{port}/wp-json/wp/v2/users",
+        f"curl -s http://{target}:{port}/api/v1/version",
+        f"python3 -c \"import requests; r=requests.get('http://{target}:{port}'); print(r.headers)\"",
+        f"grep -r 'version' /tmp/scan_results.txt",
+        f"cat /tmp/nmap_output.xml | grep 'service name'",
+    ]
+    cmds.extend(random.sample(info_pool, random.randint(1, 3)))
+
+    # 阶段3：漏洞利用（来自 EXPLOIT_COMMANDS）
     exploit_cmds = EXPLOIT_COMMANDS.get(vuln_name, [f"curl http://{target}:{port}/exploit"])
     for cmd in exploit_cmds:
         cmds.append(cmd.format(target=target, port=port)[:300])
+
+    # 阶段4：后渗透验证（1-3个命令）
+    post_pool = [
+        f"curl -s http://{target}:{port}/etc/passwd",
+        f"cat /tmp/exploit_output.txt",
+        f"python3 -c \"import hashlib; print(hashlib.md5(b'exploit_success').hexdigest())\"",
+        f"grep -i 'root:' /tmp/response.txt",
+        f"ls -la /tmp/loot/",
+        f"curl -s http://{target}:{port}/flag.txt",
+    ]
+    cmds.extend(random.sample(post_pool, random.randint(1, 3)))
+
+    # 随机打乱中间部分（保持首尾顺序感）
+    if len(cmds) > 4:
+        middle = cmds[2:-2]
+        random.shuffle(middle)
+        cmds = cmds[:2] + middle + cmds[-2:]
+
     return cmds
 
 

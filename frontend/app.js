@@ -478,6 +478,34 @@ function toggleSortOrder() {
     filterResults();
 }
 
+/** 切换成功率分析面板的Tab */
+function switchRateTab(tab) {
+    switchPanelTab('rate', tab);
+}
+
+/** 通用面板Tab切换 */
+function switchPanelTab(panel, tab) {
+    // 映射面板前缀到Tab容器ID前缀
+    const prefixMap = { rate: 'rateTab', token: 'tokenTab', tool: 'toolTab' };
+    const prefix = prefixMap[panel];
+    if (!prefix) return;
+    // 找到父section
+    const target = document.getElementById(`${prefix}-${tab}`);
+    if (!target) return;
+    const section = target.closest('.analytics-chart-section');
+    if (!section) return;
+    // 切换Tab按钮状态
+    section.querySelectorAll('.rate-tab').forEach(t => {
+        const tTab = t.dataset.tab;
+        // 支持 "difficulty" 或 "token-difficulty" 格式
+        const isActive = tTab === tab || tTab === `${panel}-${tab}`;
+        t.classList.toggle('active', isActive);
+    });
+    // 切换Tab内容
+    section.querySelectorAll('.rate-tab-content').forEach(c => c.classList.remove('active'));
+    target.classList.add('active');
+}
+
 function loadAnalytics(results, stats) {
     const total = results.length, sc = results.filter(r => r.flag === 'success').length;
     $('analyticSuccess').textContent = sc;
@@ -487,6 +515,7 @@ function loadAnalytics(results, stats) {
     renderDifficultyRate(stats);
     renderModelRate(stats);
     renderTokenCost(stats);
+    renderToolCallStats(stats);
 }
 
 function renderDifficultyRate(stats) {
@@ -552,15 +581,22 @@ function formatTokenCount(n) {
     return String(n);
 }
 
-/** 渲染 Token 成本统计面板 - 聚焦单次渗透成本 */
+/** 渲染 Token 成本统计面板 - 概览+按难度/按模型Tab */
 function renderTokenCost(stats) {
-    const el = $('tokenCostPanel');
-    if (!el) return;
+    const overviewEl = $('tokenOverview');
+    const diffEl = $('tokenDiffPanel');
+    const modelEl = $('tokenModelPanel');
+    if (!overviewEl || !diffEl || !modelEl) return;
     const ts = stats?.token_stats;
-    if (!ts || !ts.total_tokens) { el.innerHTML = '<div class="trend-empty">暂无 Token 数据</div>'; return; }
+    if (!ts || !ts.total_tokens) {
+        overviewEl.innerHTML = '';
+        diffEl.innerHTML = '<div class="trend-empty">暂无 Token 数据</div>';
+        modelEl.innerHTML = '<div class="trend-empty">暂无 Token 数据</div>';
+        return;
+    }
 
-    // 概览指标 - 聚焦平均每次成本
-    let html = `<div class="token-overview">
+    // 概览指标（始终显示）
+    overviewEl.innerHTML = `
         <div class="token-metric token-metric-highlight">
             <div class="token-metric-icon" style="background:rgba(245,158,11,0.15);color:#f59e0b"><i class="ri-money-dollar-circle-line"></i></div>
             <div class="token-metric-info">
@@ -588,23 +624,20 @@ function renderTokenCost(stats) {
                 <span class="token-metric-value">${ts.total_cost > 0 ? (ts.total_prompt_tokens / ts.total_tokens * 100).toFixed(0) + '%' : '0%'}</span>
                 <span class="token-metric-label">Prompt 占比</span>
             </div>
-        </div>
-    </div>`;
+        </div>`;
 
-    // 难度单次成本对比
+    // 按难度Tab内容
     const dts = ts.difficulty_token_stats;
     if (dts && Object.keys(dts).length) {
         const labels = { Simple: '简单漏洞', Complex: '复杂漏洞' };
         const icons = { Simple: 'ri-shield-check-line', Complex: 'ri-shield-cross-line' };
         const colors = { Simple: '#10b981', Complex: '#ef4444' };
-        html += `<div class="token-diff-section">
-            <div class="token-section-title"><i class="ri-bar-chart-line" style="color:var(--accent-cyan)"></i> 难度单次成本对比</div>
-            <div class="token-diff-grid">`;
+        let diffHtml = '<div class="token-diff-grid">';
         Object.entries(dts).forEach(([name, d]) => {
             const avgCost = d.avg_cost || 0;
             const avgTokens = d.avg_tokens || 0;
             const color = colors[name] || '#818cf8';
-            html += `<div class="token-diff-card" style="--card-color:${color}">
+            diffHtml += `<div class="token-diff-card" style="--card-color:${color}">
                 <div class="token-diff-card-header">
                     <i class="${icons[name] || 'ri-shield-line'}" style="color:${color}"></i>
                     <span class="token-diff-card-label">${labels[name] || name}</span>
@@ -616,24 +649,25 @@ function renderTokenCost(stats) {
                 </div>
             </div>`;
         });
-        html += `</div></div>`;
+        diffHtml += '</div>';
+        diffEl.innerHTML = diffHtml;
+    } else {
+        diffEl.innerHTML = '<div class="trend-empty">暂无难度数据</div>';
     }
 
-    // 各模型单次成本对比
+    // 按模型Tab内容
     const mts = ts.model_token_stats;
     if (mts && Object.keys(mts).length) {
         const sorted = Object.entries(mts).sort((a, b) => (a[1].avg_cost || 0) - (b[1].avg_cost || 0));
         const maxAvgCost = Math.max(...sorted.map(([, d]) => d.avg_cost || 0), 0.01);
-        html += `<div class="token-model-section">
-            <div class="token-section-title"><i class="ri-robot-line" style="color:var(--accent-cyan)"></i> 模型单次成本对比</div>
-            <div class="token-model-compare-list">`;
+        let modelHtml = '<div class="token-model-compare-list">';
         sorted.forEach(([name, d], idx) => {
             const avgCost = d.avg_cost || 0;
             const avgTokens = d.avg_tokens || 0;
             const pct = (avgCost / maxAvgCost * 100).toFixed(0);
             const costColor = avgCost >= 3.0 ? '#ef4444' : avgCost >= 2.7 ? '#f59e0b' : '#10b981';
             const rankIcon = idx === 0 ? '<span class="token-rank-badge best">💰 最低</span>' : idx === sorted.length - 1 ? '<span class="token-rank-badge high">🔥 最高</span>' : '';
-            html += `<div class="token-model-compare-row">
+            modelHtml += `<div class="token-model-compare-row">
                 <div class="token-model-compare-info">
                     <span class="token-model-compare-name">${name} ${rankIcon}</span>
                     <span class="token-model-compare-meta">${formatTokenCount(avgTokens)} tokens/次 · ${d.count} 次</span>
@@ -644,10 +678,140 @@ function renderTokenCost(stats) {
                 <div class="token-model-compare-cost" style="color:${costColor}">$${avgCost.toFixed(2)}</div>
             </div>`;
         });
-        html += `</div></div>`;
+        modelHtml += '</div>';
+        modelEl.innerHTML = modelHtml;
+    } else {
+        modelEl.innerHTML = '<div class="trend-empty">暂无模型数据</div>';
+    }
+}
+
+
+/** 渲染工具调用次数统计面板 - 概览+按难度/按模型Tab */
+function renderToolCallStats(stats) {
+    const overviewEl = $('toolCallOverview');
+    const diffEl = $('toolDiffPanel');
+    const modelEl = $('toolModelPanel');
+    if (!overviewEl || !diffEl || !modelEl) return;
+    const tcs = stats?.tool_call_stats;
+    if (!tcs || !tcs.total_calls) {
+        overviewEl.innerHTML = '';
+        diffEl.innerHTML = '<div class="trend-empty">暂无工具调用数据</div>';
+        modelEl.innerHTML = '<div class="trend-empty">暂无工具调用数据</div>';
+        return;
     }
 
-    el.innerHTML = html;
+    // 概览指标（始终显示）
+    overviewEl.innerHTML = `
+        <div class="tool-call-metric tool-call-metric-highlight">
+            <div class="tool-call-metric-icon" style="background:rgba(139,92,246,0.15);color:#8b5cf6"><i class="ri-tools-line"></i></div>
+            <div class="tool-call-metric-info">
+                <span class="tool-call-metric-value">${tcs.avg_calls_per_test}</span>
+                <span class="tool-call-metric-label">平均调用/次</span>
+            </div>
+        </div>
+        <div class="tool-call-metric">
+            <div class="tool-call-metric-icon" style="background:rgba(59,130,246,0.12);color:#3b82f6"><i class="ri-terminal-box-line"></i></div>
+            <div class="tool-call-metric-info">
+                <span class="tool-call-metric-value">${tcs.total_calls.toLocaleString()}</span>
+                <span class="tool-call-metric-label">总调用次数</span>
+            </div>
+        </div>`;
+
+    // 按难度Tab内容：工具类型分布 + 难度对比
+    let diffHtml = '';
+
+    // 工具类型分布
+    const ttd = tcs.tool_type_distribution;
+    if (ttd && Object.keys(ttd).length) {
+        const maxCount = Math.max(...Object.values(ttd), 1);
+        const toolIcons = {
+            nmap: 'ri-radar-line', xray: 'ri-scan-line', curl: 'ri-link',
+            sqlmap: 'ri-database-2-line', nikto: 'ri-search-eye-line',
+            metasploit: 'ri-bug-line', python: 'ri-code-s-slash-line',
+            shell: 'ri-terminal-line', other: 'ri-more-line'
+        };
+        const toolColors = {
+            nmap: '#3b82f6', xray: '#06b6d4', curl: '#10b981',
+            sqlmap: '#ef4444', nikto: '#f59e0b', metasploit: '#8b5cf6',
+            python: '#ec4899', shell: '#64748b', other: '#94a3b8'
+        };
+        diffHtml += `<div class="tool-type-section">
+            <div class="tool-type-title"><i class="ri-pie-chart-line" style="color:var(--accent-cyan)"></i> 工具类型分布</div>
+            <div class="tool-type-list">`;
+        Object.entries(ttd).forEach(([name, count]) => {
+            const pct = (count / maxCount * 100).toFixed(0);
+            const totalPct = (count / tcs.total_calls * 100).toFixed(1);
+            const icon = toolIcons[name] || 'ri-tools-line';
+            const color = toolColors[name] || '#818cf8';
+            diffHtml += `<div class="tool-type-row">
+                <div class="tool-type-info">
+                    <span class="tool-type-icon" style="color:${color}"><i class="${icon}"></i></span>
+                    <span class="tool-type-name">${name}</span>
+                    <span class="tool-type-pct">${totalPct}%</span>
+                </div>
+                <div class="tool-type-bar-wrap">
+                    <div class="tool-type-bar" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <div class="tool-type-count">${count}</div>
+            </div>`;
+        });
+        diffHtml += `</div></div>`;
+    }
+
+    // 难度对比
+    const dts = tcs.difficulty_tool_stats;
+    if (dts && Object.keys(dts).length) {
+        const labels = { Simple: '简单漏洞', Complex: '复杂漏洞' };
+        const colors = { Simple: '#10b981', Complex: '#ef4444' };
+        const icons = { Simple: 'ri-shield-check-line', Complex: 'ri-shield-cross-line' };
+        diffHtml += `<div class="tool-diff-section">
+            <div class="tool-type-title"><i class="ri-bar-chart-line" style="color:var(--accent-cyan)"></i> 难度调用对比</div>
+            <div class="tool-diff-grid">`;
+        Object.entries(dts).forEach(([name, d]) => {
+            const color = colors[name] || '#818cf8';
+            diffHtml += `<div class="tool-diff-card" style="--card-color:${color}">
+                <div class="tool-diff-card-header">
+                    <i class="${icons[name] || 'ri-shield-line'}" style="color:${color}"></i>
+                    <span class="tool-diff-card-label">${labels[name] || name}</span>
+                </div>
+                <div class="tool-diff-card-value">${d.avg_calls || 0}<small> 次/测试</small></div>
+                <div class="tool-diff-card-detail">
+                    <span><i class="ri-terminal-box-line"></i> 共 ${d.total_calls || 0} 次调用</span>
+                    <span><i class="ri-test-tube-line"></i> ${d.count || 0} 次测试</span>
+                </div>
+            </div>`;
+        });
+        diffHtml += `</div></div>`;
+    }
+
+    diffEl.innerHTML = diffHtml || '<div class="trend-empty">暂无难度数据</div>';
+
+    // 按模型Tab内容
+    const mts = tcs.model_tool_stats;
+    if (mts && Object.keys(mts).length) {
+        const sorted = Object.entries(mts).sort((a, b) => (b[1].avg_calls || 0) - (a[1].avg_calls || 0));
+        const maxAvg = Math.max(...sorted.map(([, d]) => d.avg_calls || 0), 0.1);
+        let modelHtml = '<div class="tool-model-list">';
+        sorted.forEach(([name, d]) => {
+            const avg = d.avg_calls || 0;
+            const pct = (avg / maxAvg * 100).toFixed(0);
+            const barColor = avg >= maxAvg * 0.8 ? '#8b5cf6' : avg >= maxAvg * 0.5 ? '#3b82f6' : '#06b6d4';
+            modelHtml += `<div class="tool-model-row">
+                <div class="tool-model-info">
+                    <span class="tool-model-name">${name}</span>
+                    <span class="tool-model-meta">${d.total_calls} 次 · ${d.count} 测试</span>
+                </div>
+                <div class="tool-model-bar-wrap">
+                    <div class="tool-model-bar" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+                <div class="tool-model-avg" style="color:${barColor}">${avg}</div>
+            </div>`;
+        });
+        modelHtml += '</div>';
+        modelEl.innerHTML = modelHtml;
+    } else {
+        modelEl.innerHTML = '<div class="trend-empty">暂无模型数据</div>';
+    }
 }
 
 

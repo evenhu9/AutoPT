@@ -207,9 +207,41 @@
                             <div class="summary-item"><div class="summary-icon rate"><i class="ri-percent-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticRate">0%</span><span class="summary-label">成功率</span></div></div>
                             <div class="summary-item"><div class="summary-icon time"><i class="ri-timer-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticAvgTime">0s</span><span class="summary-label">平均耗时</span></div></div>
                         </div>
-                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-bar-chart-line"></i> 难度成功率</h4><div class="difficulty-rate-panel" id="difficultyRatePanel"></div></div>
-                        <div class="analytics-chart-section token-cost-section"><h4 class="chart-title"><i class="ri-coin-line"></i> Token 成本统计</h4><div class="token-cost-panel" id="tokenCostPanel"><div class="trend-empty">暂无数据</div></div></div>
-                        <div class="analytics-chart-section model-rate-section"><h4 class="chart-title"><i class="ri-robot-line"></i> 模型成功率</h4><div class="model-rate-panel" id="modelRatePanel"></div></div>
+                        <div class="analytics-chart-section success-rate-section">
+                            <div class="chart-title-bar">
+                                <h4 class="chart-title"><i class="ri-trophy-line"></i> 成功率分析</h4>
+                                <div class="rate-tabs">
+                                    <button class="rate-tab active" data-tab="difficulty" onclick="switchPanelTab('rate','difficulty')"><i class="ri-bar-chart-line"></i> 按难度</button>
+                                    <button class="rate-tab" data-tab="model" onclick="switchPanelTab('rate','model')"><i class="ri-robot-line"></i> 按模型</button>
+                                </div>
+                            </div>
+                            <div class="rate-tab-content active" id="rateTab-difficulty"><div class="difficulty-rate-panel" id="difficultyRatePanel"></div></div>
+                            <div class="rate-tab-content" id="rateTab-model"><div class="model-rate-panel" id="modelRatePanel"></div></div>
+                        </div>
+                        <div class="analytics-chart-section token-cost-section">
+                            <div class="chart-title-bar">
+                                <h4 class="chart-title"><i class="ri-coin-line"></i> Token 成本统计</h4>
+                                <div class="rate-tabs">
+                                    <button class="rate-tab active" data-tab="token-difficulty" onclick="switchPanelTab('token','difficulty')"><i class="ri-bar-chart-line"></i> 按难度</button>
+                                    <button class="rate-tab" data-tab="token-model" onclick="switchPanelTab('token','model')"><i class="ri-robot-line"></i> 按模型</button>
+                                </div>
+                            </div>
+                            <div class="token-overview" id="tokenOverview"></div>
+                            <div class="rate-tab-content active" id="tokenTab-difficulty"><div id="tokenDiffPanel"></div></div>
+                            <div class="rate-tab-content" id="tokenTab-model"><div id="tokenModelPanel"></div></div>
+                        </div>
+                        <div class="analytics-chart-section tool-call-section">
+                            <div class="chart-title-bar">
+                                <h4 class="chart-title"><i class="ri-tools-line"></i> 工具调用统计</h4>
+                                <div class="rate-tabs">
+                                    <button class="rate-tab active" data-tab="tool-difficulty" onclick="switchPanelTab('tool','difficulty')"><i class="ri-bar-chart-line"></i> 按难度</button>
+                                    <button class="rate-tab" data-tab="tool-model" onclick="switchPanelTab('tool','model')"><i class="ri-robot-line"></i> 按模型</button>
+                                </div>
+                            </div>
+                            <div class="tool-call-overview" id="toolCallOverview"></div>
+                            <div class="rate-tab-content active" id="toolTab-difficulty"><div id="toolDiffPanel"></div></div>
+                            <div class="rate-tab-content" id="toolTab-model"><div id="toolModelPanel"></div></div>
+                        </div>
                     </div></div>
                 </div>
             </section>

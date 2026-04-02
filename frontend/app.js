@@ -72,8 +72,14 @@ async function loadDashboard() {
             $('statVulns').textContent = d.total_vulns ?? '-';
             $('statSuccess').textContent = d.success_count ?? '-';
             $('statFailed').textContent = d.failed_count ?? '-';
-            $('statRate').textContent = (d.success_rate ?? 0) + '%';
+            $('statRate').textContent = (d.success_rate ?? 0).toFixed(2) + '%';
             $('statAvgTime').textContent = (d.avg_runtime ?? 0) + 's';
+            // Token 成本
+            const ts = d.token_stats;
+            if (ts) {
+                $('statTokenCost').textContent = '$' + (ts.avg_cost_per_test ?? 0).toFixed(2);
+                $('statTotalTokens').textContent = formatTokenCount(ts.avg_tokens_per_test ?? 0);
+            }
         }
         if (vulnRes.status === 'ok' && vulnRes.data) renderOwaspGrid(vulnRes.data);
         const cfgRes = await apiGet('/api/config');
@@ -327,15 +333,30 @@ document.addEventListener('click', e => {
 });
 
 async function startEnv(composePath) {
-    const t = showToast('正在启动靶机环境，若镜像不存在将自动拉取创建，请耐心等候...', 'info', '启动中', 60000);
-    const res = await apiPost('/api/docker/start', { compose_file: composePath });
-    dismissToast(t);
-    const errTitles = { docker_daemon: 'Docker服务不可用', sandbox_limit: '沙箱环境限制', rate_limit: 'Docker Hub限流', timeout: '操作超时' };
-    if (res.status === 'ok') {
-        const title = res.created ? '靶机已创建并启动' : '靶机已启动';
-        showToast(res.message || '环境启动成功', 'success', title);
-    } else {
-        showToast(res.message || '启动失败', 'error', errTitles[res.error_type] || '启动失败');
+    const t = showToast('正在启动靶机环境，若镜像不存在将自动拉取创建，请耐心等候...', 'info', '启动中', 120000);
+    try {
+        const res = await apiPost('/api/docker/start', { compose_file: composePath });
+        dismissToast(t);
+        const errTitles = {
+            docker_daemon: 'Docker服务不可用',
+            sandbox_limit: '沙箱环境限制',
+            rate_limit: 'Docker Hub限流',
+            timeout: '操作超时',
+            pull_error: '镜像拉取失败',
+            image_not_found: '镜像不存在',
+            network_error: '网络异常',
+            port_conflict: '端口冲突',
+            disk_full: '磁盘空间不足',
+        };
+        if (res.status === 'ok') {
+            const title = res.created ? '靶机已创建并启动' : '靶机已启动';
+            showToast(res.message || '环境启动成功', 'success', title);
+        } else {
+            showToast(res.message || '启动失败', 'error', errTitles[res.error_type] || '启动失败');
+        }
+    } catch (e) {
+        dismissToast(t);
+        showToast('请求异常，可能是镜像拉取超时，请稍后重试', 'error', '启动失败');
     }
     refreshDocker();
 }
@@ -413,15 +434,20 @@ function renderResultsTable(data) {
         return _sortDesc ? tb.localeCompare(ta) : ta.localeCompare(tb);
     });
     $('historyCountBadge').textContent = `${sorted.length} 条`;
-    if (!sorted.length) { $('resultBody').innerHTML = '<tr><td colspan="6" class="table-empty">未找到匹配记录</td></tr>'; return; }
+    if (!sorted.length) { $('resultBody').innerHTML = '<tr><td colspan="8" class="table-empty">未找到匹配记录</td></tr>'; return; }
     $('resultBody').innerHTML = sorted.map(r => {
         const i = _allResults.indexOf(r), ok = r.flag === 'success';
         const ts = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '-';
+        const tu = r.token_usage || {};
+        const tokenTotal = tu.total_tokens || 0;
+        const tokenCost = tu.estimated_cost || 0;
         return `<tr><td><span style="color:var(--text-muted);font-size:12px;white-space:nowrap"><i class="ri-time-line" style="margin-right:3px"></i>${ts}</span></td>
             <td><code style="color:var(--accent-cyan)">${r.source_file || `test_${i}`}</code></td>
             <td>${r.model || 'N/A'}</td>
             <td><span class="badge ${ok ? 'badge-success' : 'badge-danger'}">${ok ? '✓ 成功' : '✗ 失败'}</span></td>
             <td>${r.runtime ? r.runtime.toFixed(1) + 's' : 'N/A'}</td>
+            <td><span class="token-cell" title="Prompt: ${(tu.prompt_tokens||0).toLocaleString()} / Completion: ${(tu.completion_tokens||0).toLocaleString()}"><i class="ri-stack-line" style="color:#818cf8;margin-right:3px"></i>${formatTokenCount(tokenTotal)}</span></td>
+            <td><span class="cost-cell ${tokenCost >= 3.0 ? 'cost-high' : tokenCost >= 2.5 ? 'cost-mid' : 'cost-low'}">$${tokenCost.toFixed(2)}</span></td>
             <td><button class="btn btn-sm" onclick="showResultDetail(${i})"><i class="ri-eye-line"></i></button></td></tr>`;
     }).join('');
 }
@@ -456,35 +482,174 @@ function loadAnalytics(results, stats) {
     const total = results.length, sc = results.filter(r => r.flag === 'success').length;
     $('analyticSuccess').textContent = sc;
     $('analyticFailed').textContent = total - sc;
-    $('analyticRate').textContent = (total > 0 ? Math.round(sc / total * 100) : 0) + '%';
+    $('analyticRate').textContent = (total > 0 ? (sc / total * 100).toFixed(2) : '0.00') + '%';
     $('analyticAvgTime').textContent = (total > 0 ? (results.reduce((s, r) => s + (r.runtime || 0), 0) / total).toFixed(1) : 0) + 's';
-    renderTypeDistChart(stats);
-    renderTrendChart(results);
+    renderDifficultyRate(stats);
+    renderModelRate(stats);
+    renderTokenCost(stats);
 }
 
-function renderTypeDistChart(stats) {
-    const el = $('typeDistChart');
-    if (!stats?.type_stats || !Object.keys(stats.type_stats).length) { el.innerHTML = '<div class="trend-empty">暂无类型数据</div>'; return; }
-    const types = stats.type_stats, max = Math.max(...Object.values(types).map(v => v.total), 1);
-    el.innerHTML = Object.entries(types).map(([name, d]) => `<div class="chart-bar-row">
-        <span class="chart-bar-label" title="${name}">${name}</span>
-        <div class="chart-bar-track"><div class="chart-bar-fill total" style="width:${(d.total/max*100).toFixed(0)}%"></div>
-            <div class="chart-bar-fill success" style="width:${(d.success/max*100).toFixed(0)}%;position:absolute;top:0;left:0;height:100%;opacity:0.8"></div></div>
-        <span class="chart-bar-value">${d.success}/${d.total}</span></div>`).join('');
-}
-
-function renderTrendChart(results) {
-    const el = $('trendChart');
-    if (!results.length) { el.innerHTML = '<div class="trend-empty">暂无趋势数据</div>'; return; }
-    const recent = results.slice(-20), maxT = Math.max(...recent.map(r => r.runtime || 0), 1);
-    el.innerHTML = recent.map((r, i) => {
-        const ok = r.flag === 'success', h = Math.max(((r.runtime || 0) / maxT) * 130, 4);
-        const name = (r.source_file || `#${i+1}`).split('/').pop().replace(/\.json$/i, '').slice(0, 12);
-        return `<div class="trend-bar-group" title="${r.source_file || ''}\n耗时: ${r.runtime ? r.runtime.toFixed(1)+'s' : 'N/A'}\n结果: ${ok ? '成功' : '失败'}">
-            <div class="trend-bar ${ok ? 'success-bar' : 'failed-bar'}" style="height:${h}px"></div>
-            <span class="trend-bar-label">${name}</span></div>`;
+function renderDifficultyRate(stats) {
+    const el = $('difficultyRatePanel');
+    if (!el) return;
+    const ds = stats?.difficulty_stats;
+    if (!ds || !Object.keys(ds).length) { el.innerHTML = '<div class="trend-empty">暂无难度数据</div>'; return; }
+    const labels = { Simple: '简单', Complex: '复杂' };
+    const colors = { Simple: 'var(--accent-green)', Complex: 'var(--accent-red)' };
+    el.innerHTML = Object.entries(ds).map(([name, d]) => {
+        const tested = d.tested || 0, success = d.success || 0;
+        const rate = tested > 0 ? (success / tested * 100).toFixed(2) : '0.00';
+        const pct = tested > 0 ? (success / tested * 100) : 0;
+        return `<div class="diff-rate-item">
+            <div class="diff-rate-header">
+                <span class="diff-rate-label">${labels[name] || name}</span>
+                <span class="diff-rate-value" style="color:${colors[name] || 'var(--accent-cyan)'}">${rate}%</span>
+            </div>
+            <div class="diff-rate-bar-track">
+                <div class="diff-rate-bar-fill" style="width:${pct}%;background:${colors[name] || 'var(--accent-cyan)'}"></div>
+            </div>
+            <div class="diff-rate-detail">${success}/${tested} 成功 · 共 ${d.total || 0} 个漏洞</div>
+        </div>`;
     }).join('');
 }
+
+function renderModelRate(stats) {
+    const el = $('modelRatePanel');
+    if (!el) return;
+    const ms = stats?.model_stats;
+    if (!ms || !Object.keys(ms).length) { el.innerHTML = '<div class="trend-empty">暂无模型数据</div>'; return; }
+    const sorted = Object.entries(ms).sort((a, b) => {
+        const ra = a[1].total > 0 ? a[1].success / a[1].total : 0;
+        const rb = b[1].total > 0 ? b[1].success / b[1].total : 0;
+        return rb - ra;
+    });
+    const maxTotal = Math.max(...sorted.map(([, d]) => d.total), 1);
+    const medalIcons = ['🥇', '🥈', '🥉'];
+    el.innerHTML = sorted.map(([name, d], idx) => {
+        const rate = d.total > 0 ? (d.success / d.total * 100).toFixed(2) : '0.00';
+        const pct = d.total > 0 ? (d.success / d.total * 100) : 0;
+        const barW = (d.total / maxTotal * 100).toFixed(0);
+        const medal = idx < 3 ? `<span class="model-medal">${medalIcons[idx]}</span>` : '';
+        const rateColor = pct >= 80 ? 'var(--accent-green)' : pct >= 50 ? 'var(--accent-yellow, #f59e0b)' : 'var(--accent-red)';
+        return `<div class="model-rate-item">
+            <div class="model-rate-header">
+                <span class="model-rate-name">${medal}${name}</span>
+                <span class="model-rate-value" style="color:${rateColor}">${rate}%</span>
+            </div>
+            <div class="model-rate-bar-track">
+                <div class="model-rate-bar-bg" style="width:${barW}%"></div>
+                <div class="model-rate-bar-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="model-rate-detail">${d.success}/${d.total} 成功</div>
+        </div>`;
+    }).join('');
+}
+
+/** 格式化 token 数量为可读字符串 */
+function formatTokenCount(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+}
+
+/** 渲染 Token 成本统计面板 - 聚焦单次渗透成本 */
+function renderTokenCost(stats) {
+    const el = $('tokenCostPanel');
+    if (!el) return;
+    const ts = stats?.token_stats;
+    if (!ts || !ts.total_tokens) { el.innerHTML = '<div class="trend-empty">暂无 Token 数据</div>'; return; }
+
+    // 概览指标 - 聚焦平均每次成本
+    let html = `<div class="token-overview">
+        <div class="token-metric token-metric-highlight">
+            <div class="token-metric-icon" style="background:rgba(245,158,11,0.15);color:#f59e0b"><i class="ri-money-dollar-circle-line"></i></div>
+            <div class="token-metric-info">
+                <span class="token-metric-value">$${ts.avg_cost_per_test.toFixed(2)}</span>
+                <span class="token-metric-label">平均成本/次</span>
+            </div>
+        </div>
+        <div class="token-metric">
+            <div class="token-metric-icon" style="background:rgba(99,102,241,0.12);color:#818cf8"><i class="ri-stack-line"></i></div>
+            <div class="token-metric-info">
+                <span class="token-metric-value">${formatTokenCount(ts.avg_tokens_per_test)}</span>
+                <span class="token-metric-label">平均 Tokens/次</span>
+            </div>
+        </div>
+        <div class="token-metric">
+            <div class="token-metric-icon" style="background:rgba(16,185,129,0.12);color:#10b981"><i class="ri-exchange-line"></i></div>
+            <div class="token-metric-info">
+                <span class="token-metric-value">${formatTokenCount(ts.total_tokens)}</span>
+                <span class="token-metric-label">总 Tokens</span>
+            </div>
+        </div>
+        <div class="token-metric">
+            <div class="token-metric-icon" style="background:rgba(239,68,68,0.12);color:#ef4444"><i class="ri-file-list-3-line"></i></div>
+            <div class="token-metric-info">
+                <span class="token-metric-value">${ts.total_cost > 0 ? (ts.total_prompt_tokens / ts.total_tokens * 100).toFixed(0) + '%' : '0%'}</span>
+                <span class="token-metric-label">Prompt 占比</span>
+            </div>
+        </div>
+    </div>`;
+
+    // 难度单次成本对比
+    const dts = ts.difficulty_token_stats;
+    if (dts && Object.keys(dts).length) {
+        const labels = { Simple: '简单漏洞', Complex: '复杂漏洞' };
+        const icons = { Simple: 'ri-shield-check-line', Complex: 'ri-shield-cross-line' };
+        const colors = { Simple: '#10b981', Complex: '#ef4444' };
+        html += `<div class="token-diff-section">
+            <div class="token-section-title"><i class="ri-bar-chart-line" style="color:var(--accent-cyan)"></i> 难度单次成本对比</div>
+            <div class="token-diff-grid">`;
+        Object.entries(dts).forEach(([name, d]) => {
+            const avgCost = d.avg_cost || 0;
+            const avgTokens = d.avg_tokens || 0;
+            const color = colors[name] || '#818cf8';
+            html += `<div class="token-diff-card" style="--card-color:${color}">
+                <div class="token-diff-card-header">
+                    <i class="${icons[name] || 'ri-shield-line'}" style="color:${color}"></i>
+                    <span class="token-diff-card-label">${labels[name] || name}</span>
+                </div>
+                <div class="token-diff-card-cost">$${avgCost.toFixed(2)}</div>
+                <div class="token-diff-card-detail">
+                    <span><i class="ri-stack-line"></i> ${formatTokenCount(avgTokens)} tokens/次</span>
+                    <span><i class="ri-test-tube-line"></i> ${d.count} 次测试</span>
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    // 各模型单次成本对比
+    const mts = ts.model_token_stats;
+    if (mts && Object.keys(mts).length) {
+        const sorted = Object.entries(mts).sort((a, b) => (a[1].avg_cost || 0) - (b[1].avg_cost || 0));
+        const maxAvgCost = Math.max(...sorted.map(([, d]) => d.avg_cost || 0), 0.01);
+        html += `<div class="token-model-section">
+            <div class="token-section-title"><i class="ri-robot-line" style="color:var(--accent-cyan)"></i> 模型单次成本对比</div>
+            <div class="token-model-compare-list">`;
+        sorted.forEach(([name, d], idx) => {
+            const avgCost = d.avg_cost || 0;
+            const avgTokens = d.avg_tokens || 0;
+            const pct = (avgCost / maxAvgCost * 100).toFixed(0);
+            const costColor = avgCost >= 3.0 ? '#ef4444' : avgCost >= 2.7 ? '#f59e0b' : '#10b981';
+            const rankIcon = idx === 0 ? '<span class="token-rank-badge best">💰 最低</span>' : idx === sorted.length - 1 ? '<span class="token-rank-badge high">🔥 最高</span>' : '';
+            html += `<div class="token-model-compare-row">
+                <div class="token-model-compare-info">
+                    <span class="token-model-compare-name">${name} ${rankIcon}</span>
+                    <span class="token-model-compare-meta">${formatTokenCount(avgTokens)} tokens/次 · ${d.count} 次</span>
+                </div>
+                <div class="token-model-compare-bar-wrap">
+                    <div class="token-model-compare-bar" style="width:${pct}%;background:${costColor}"></div>
+                </div>
+                <div class="token-model-compare-cost" style="color:${costColor}">$${avgCost.toFixed(2)}</div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    el.innerHTML = html;
+}
+
 
 function showResultDetail(index) {
     const r = window._results[index];
@@ -497,6 +662,22 @@ function showResultDetail(index) {
         <span class="badge badge-info" style="margin-left:8px">${r.model || 'N/A'}</span></div>
         <p style="margin-bottom:8px"><i class="ri-calendar-line" style="margin-right:4px;color:var(--accent-cyan)"></i>时间: <strong>${ts}</strong></p>
         <p style="margin-bottom:12px"><i class="ri-timer-line" style="margin-right:4px;color:var(--accent-cyan)"></i>耗时: <strong>${r.runtime ? r.runtime.toFixed(1)+'s' : 'N/A'}</strong></p>`;
+    if (r.token_usage) {
+        const tu = r.token_usage;
+        html += `<div class="detail-token-bar" style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+            <div class="detail-token-chip" style="background:rgba(99,102,241,0.12);color:#818cf8;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600">
+                <i class="ri-chat-upload-line" style="margin-right:3px"></i>Prompt: ${(tu.prompt_tokens || 0).toLocaleString()}
+            </div>
+            <div class="detail-token-chip" style="background:rgba(16,185,129,0.12);color:#10b981;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600">
+                <i class="ri-chat-download-line" style="margin-right:3px"></i>Completion: ${(tu.completion_tokens || 0).toLocaleString()}
+            </div>
+            <div class="detail-token-chip" style="background:rgba(245,158,11,0.12);color:#f59e0b;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600">
+                <i class="ri-coins-line" style="margin-right:3px"></i>Total: ${(tu.total_tokens || 0).toLocaleString()}
+            </div>
+            <div class="detail-token-chip" style="background:rgba(239,68,68,0.12);color:#ef4444;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600">
+                <i class="ri-money-dollar-circle-line" style="margin-right:3px"></i>$${(tu.estimated_cost || 0).toFixed(4)}
+            </div>
+        </div>`; }
     if (r.commands?.length)
         html += `<h4 style="margin:16px 0 8px;color:var(--text-primary)">执行命令</h4>
             <div style="background:var(--bg-input);padding:12px;border-radius:8px;font-family:var(--font-mono);font-size:12px;max-height:200px;overflow-y:auto">
@@ -598,4 +779,15 @@ function showConfirm(message, title = '确认操作') {
 }
 
 // ==================== 初始化 ====================
-document.addEventListener('DOMContentLoaded', () => { loadDashboard(); loadVulns(); });
+let _autoRefreshTimer = null;
+
+function startAutoRefresh(interval = 30000) {
+    if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+    _autoRefreshTimer = setInterval(() => {
+        const activePage = document.querySelector('.page.active');
+        if (activePage?.id === 'page-results') loadResults();
+        else if (activePage?.id === 'page-dashboard') loadDashboard();
+    }, interval);
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadDashboard(); loadVulns(); startAutoRefresh(); });

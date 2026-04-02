@@ -167,11 +167,99 @@ def get_stats():
                     type_stats[vtype]['success'] += 1
                 break
 
-    difficulty_stats = {'Simple': {'total': 0, 'success': 0}, 'Complex': {'total': 0, 'success': 0}}
+    # 按难度统计（包含漏洞总数和测试成功数）
+    difficulty_stats = {'Simple': {'total': 0, 'tested': 0, 'success': 0}, 'Complex': {'total': 0, 'tested': 0, 'success': 0}}
+    vuln_diff_map = {}
     for v in vulns:
         diff = v.get('difficulty', 'Unknown')
         if diff in difficulty_stats:
             difficulty_stats[diff]['total'] += 1
+        vuln_diff_map[v['name'].replace('/', '_')] = diff
+
+    for r in results:
+        source = r.get('source_file', '')
+        for vkey, diff in vuln_diff_map.items():
+            if vkey in source and diff in difficulty_stats:
+                difficulty_stats[diff]['tested'] += 1
+                if r.get('flag') == 'success':
+                    difficulty_stats[diff]['success'] += 1
+                break
+
+    # 按模型统计
+    model_stats = {}
+    for r in results:
+        model = r.get('model', 'Unknown')
+        if model not in model_stats:
+            model_stats[model] = {'total': 0, 'success': 0}
+        model_stats[model]['total'] += 1
+        if r.get('flag') == 'success':
+            model_stats[model]['success'] += 1
+
+    # Token 成本统计
+    total_prompt_tokens = 0
+    total_completion_tokens = 0
+    total_tokens = 0
+    total_cost = 0.0
+    model_token_stats = {}
+    difficulty_token_stats = {'Simple': {'total_tokens': 0, 'total_cost': 0.0, 'count': 0},
+                              'Complex': {'total_tokens': 0, 'total_cost': 0.0, 'count': 0}}
+    for r in results:
+        tu = r.get('token_usage', {})
+        pt = tu.get('prompt_tokens', 0)
+        ct = tu.get('completion_tokens', 0)
+        tt = tu.get('total_tokens', 0)
+        cost = tu.get('estimated_cost', 0)
+        total_prompt_tokens += pt
+        total_completion_tokens += ct
+        total_tokens += tt
+        total_cost += cost
+        model = r.get('model', 'Unknown')
+        if model not in model_token_stats:
+            model_token_stats[model] = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0, 'total_cost': 0.0, 'count': 0}
+        model_token_stats[model]['prompt_tokens'] += pt
+        model_token_stats[model]['completion_tokens'] += ct
+        model_token_stats[model]['total_tokens'] += tt
+        model_token_stats[model]['total_cost'] += cost
+        model_token_stats[model]['count'] += 1
+
+        # 按难度统计 token 成本
+        source = r.get('source_file', '')
+        for vkey, diff in vuln_diff_map.items():
+            if vkey in source and diff in difficulty_token_stats:
+                difficulty_token_stats[diff]['total_tokens'] += tt
+                difficulty_token_stats[diff]['total_cost'] += cost
+                difficulty_token_stats[diff]['count'] += 1
+                break
+
+    # 计算每个模型的平均 token 和成本
+    for m in model_token_stats:
+        cnt = model_token_stats[m]['count']
+        if cnt > 0:
+            model_token_stats[m]['avg_tokens'] = round(model_token_stats[m]['total_tokens'] / cnt)
+            model_token_stats[m]['avg_cost'] = round(model_token_stats[m]['total_cost'] / cnt, 4)
+        model_token_stats[m]['total_cost'] = round(model_token_stats[m]['total_cost'], 4)
+
+    # 计算每个难度的平均 token 和成本
+    for d in difficulty_token_stats:
+        cnt = difficulty_token_stats[d]['count']
+        if cnt > 0:
+            difficulty_token_stats[d]['avg_tokens'] = round(difficulty_token_stats[d]['total_tokens'] / cnt)
+            difficulty_token_stats[d]['avg_cost'] = round(difficulty_token_stats[d]['total_cost'] / cnt, 4)
+        else:
+            difficulty_token_stats[d]['avg_tokens'] = 0
+            difficulty_token_stats[d]['avg_cost'] = 0
+        difficulty_token_stats[d]['total_cost'] = round(difficulty_token_stats[d]['total_cost'], 4)
+
+    token_stats = {
+        'total_prompt_tokens': total_prompt_tokens,
+        'total_completion_tokens': total_completion_tokens,
+        'total_tokens': total_tokens,
+        'total_cost': round(total_cost, 4),
+        'avg_tokens_per_test': round(total_tokens / total_tests) if total_tests > 0 else 0,
+        'avg_cost_per_test': round(total_cost / total_tests, 4) if total_tests > 0 else 0,
+        'model_token_stats': model_token_stats,
+        'difficulty_token_stats': difficulty_token_stats,
+    }
 
     return jsonify({
         'status': 'ok',
@@ -180,10 +268,12 @@ def get_stats():
             'total_tests': total_tests,
             'success_count': success_count,
             'failed_count': failed_count,
-            'success_rate': round(success_count / total_tests * 100, 1) if total_tests > 0 else 0,
+            'success_rate': round(success_count / total_tests * 100, 2) if total_tests > 0 else 0,
             'avg_runtime': round(avg_runtime, 1),
             'type_stats': type_stats,
             'difficulty_stats': difficulty_stats,
+            'model_stats': model_stats,
+            'token_stats': token_stats,
         }
     })
 
@@ -362,14 +452,40 @@ def start_docker_env():
 
         # 检查环境是否已存在
         env_exists = _check_env_exists(compose_cmd, env_dir)
-        action_msg = '环境启动成功' if env_exists else '环境创建并启动成功'
 
-        # docker compose up -d 会自动处理创建和启动
-        # 不存在时会自动 pull/build 镜像并创建容器
-        # 已存在时会直接启动
+        if not env_exists:
+            # ---------- 首次创建：先单独 pull 镜像（超时更长，错误更清晰） ----------
+            pull_result = subprocess.run(
+                compose_cmd + ['pull'],
+                capture_output=True, encoding='utf-8', timeout=600,
+                cwd=env_dir
+            )
+            if pull_result.returncode != 0:
+                pull_err = (pull_result.stderr or '').strip()
+                # 从 stderr 中提取最后一段有效错误（去掉 pull 进度噪音）
+                err_lines = [l for l in pull_err.split('\n') if l.strip() and 'pulling' not in l.lower() and 'download' not in l.lower()]
+                clean_err = '\n'.join(err_lines[-5:]) if err_lines else pull_err[-500:]
+
+                if 'Cannot connect' in pull_err or 'connection refused' in pull_err.lower():
+                    return jsonify({'status': 'error', 'message': 'Docker守护进程未运行', 'error_type': 'docker_daemon'})
+                elif 'rate limit' in pull_err.lower() or 'toomanyrequests' in pull_err.lower() or '429' in pull_err:
+                    return jsonify({'status': 'error', 'message': f'Docker Hub 拉取限流，请稍后重试。\n{clean_err}', 'error_type': 'rate_limit'})
+                elif 'not found' in pull_err.lower() or 'manifest unknown' in pull_err.lower():
+                    return jsonify({'status': 'error', 'message': f'镜像不存在或已下架：{clean_err}', 'error_type': 'image_not_found'})
+                elif 'timeout' in pull_err.lower() or 'timed out' in pull_err.lower():
+                    return jsonify({'status': 'error', 'message': f'拉取镜像超时，请检查网络连接。\n{clean_err}', 'error_type': 'network_error'})
+                elif 'no space' in pull_err.lower() or 'disk' in pull_err.lower():
+                    return jsonify({'status': 'error', 'message': f'磁盘空间不足：{clean_err}', 'error_type': 'disk_full'})
+                else:
+                    return jsonify({'status': 'error', 'message': f'镜像拉取失败：{clean_err}', 'error_type': 'pull_error'})
+
+        # ---------- 创建/启动容器 ----------
+        action_msg = '环境启动成功' if env_exists else '环境创建并启动成功'
+        timeout_sec = 120 if env_exists else 300
+
         result = subprocess.run(
             compose_cmd + ['up', '-d'],
-            capture_output=True, encoding='utf-8', timeout=300,
+            capture_output=True, encoding='utf-8', timeout=timeout_sec,
             cwd=env_dir
         )
         if result.returncode == 0:
@@ -380,18 +496,29 @@ def start_docker_env():
                 'created': not env_exists
             })
         else:
-            error_msg = result.stderr or ''
-            if 'Cannot connect' in error_msg:
+            raw_err = (result.stderr or '').strip()
+            # 提取有效错误行（去掉 docker compose 的噪音输出）
+            err_lines = [l for l in raw_err.split('\n') if l.strip() and not l.strip().startswith(('Container ', 'Network ', 'Volume '))]
+            error_msg = '\n'.join(err_lines[-5:]) if err_lines else raw_err[-500:]
+
+            if 'Cannot connect' in raw_err:
                 error_type = 'docker_daemon'
                 error_msg = 'Docker守护进程未运行'
-            elif 'unshare' in error_msg.lower() or 'operation not permitted' in error_msg.lower():
+            elif 'unshare' in raw_err.lower() or 'operation not permitted' in raw_err.lower():
                 error_type = 'sandbox_limit'
                 error_msg = '容器启动权限不足：当前环境可能缺少必要权限。请在有完整Docker权限的机器上运行。'
+            elif 'port is already allocated' in raw_err.lower() or 'address already in use' in raw_err.lower():
+                error_type = 'port_conflict'
+                error_msg = f'端口冲突：{error_msg}'
+            elif 'no space' in raw_err.lower():
+                error_type = 'disk_full'
+                error_msg = f'磁盘空间不足：{error_msg}'
             else:
                 error_type = 'docker_error'
             return jsonify({'status': 'error', 'message': error_msg, 'error_type': error_type})
     except subprocess.TimeoutExpired:
-        return jsonify({'status': 'error', 'message': '环境启动超时（300秒）', 'error_type': 'timeout'})
+        timeout_hint = '镜像拉取/创建超时' if not env_exists else '环境启动超时'
+        return jsonify({'status': 'error', 'message': f'{timeout_hint}，请检查网络连接后重试', 'error_type': 'timeout'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e), 'error_type': 'unknown'})
 

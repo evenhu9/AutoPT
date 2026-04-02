@@ -64,6 +64,11 @@
                         <div class="stat-info"><div class="stat-value" id="statFailed">0</div><div class="stat-label">测试失败</div></div>
                         <div class="stat-trend"><i class="ri-time-line"></i> <span id="statAvgTime">0s</span> 平均耗时</div>
                     </div>
+                    <div class="stat-card" data-color="orange">
+                        <div class="stat-icon"><i class="ri-coin-line"></i></div>
+                        <div class="stat-info"><div class="stat-value" id="statTokenCost">$0</div><div class="stat-label">平均 Token 成本/次</div></div>
+                        <div class="stat-trend"><i class="ri-copper-coin-line"></i> <span id="statTotalTokens">0</span> tokens/次</div>
+                    </div>
                     <div class="stat-card" data-color="purple">
                         <div class="stat-icon"><i class="ri-robot-line"></i></div>
                         <div class="stat-info"><div class="stat-value" id="statModel">GPT-4o</div><div class="stat-label">当前模型</div></div>
@@ -187,8 +192,8 @@
                         </div>
                         <div class="card-body"><div class="table-container" id="historyTableContainer">
                             <table class="data-table">
-                                <thead><tr><th>时间</th><th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>操作</th></tr></thead>
-                                <tbody id="resultBody"><tr><td colspan="6" class="table-empty">暂无测试记录</td></tr></tbody>
+                                <thead><tr><th>时间</th><th>漏洞</th><th>模型</th><th>结果</th><th>耗时</th><th>Tokens</th><th>花费</th><th>操作</th></tr></thead>
+                                <tbody id="resultBody"><tr><td colspan="8" class="table-empty">暂无测试记录</td></tr></tbody>
                             </table>
                         </div></div>
                     </div>
@@ -202,8 +207,9 @@
                             <div class="summary-item"><div class="summary-icon rate"><i class="ri-percent-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticRate">0%</span><span class="summary-label">成功率</span></div></div>
                             <div class="summary-item"><div class="summary-icon time"><i class="ri-timer-line"></i></div><div class="summary-info"><span class="summary-value" id="analyticAvgTime">0s</span><span class="summary-label">平均耗时</span></div></div>
                         </div>
-                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-pie-chart-line"></i> 漏洞类型分布</h4><div class="chart-bars" id="typeDistChart"></div></div>
-                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-line-chart-line"></i> 测试结果趋势</h4><div class="trend-chart" id="trendChart"></div></div>
+                        <div class="analytics-chart-section"><h4 class="chart-title"><i class="ri-bar-chart-line"></i> 难度成功率</h4><div class="difficulty-rate-panel" id="difficultyRatePanel"></div></div>
+                        <div class="analytics-chart-section token-cost-section"><h4 class="chart-title"><i class="ri-coin-line"></i> Token 成本统计</h4><div class="token-cost-panel" id="tokenCostPanel"><div class="trend-empty">暂无数据</div></div></div>
+                        <div class="analytics-chart-section model-rate-section"><h4 class="chart-title"><i class="ri-robot-line"></i> 模型成功率</h4><div class="model-rate-panel" id="modelRatePanel"></div></div>
                     </div></div>
                 </div>
             </section>

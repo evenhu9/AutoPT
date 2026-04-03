@@ -132,6 +132,199 @@ EXPLOIT_COMMANDS = {
     ],
 }
 
+# ==================== 渗透失败场景模板 ====================
+# 模拟真实的 Agent 思考过程（Thought/Action/Action Input 格式）
+FAILED_SCAN_NMAP_OUTPUTS = [
+    """Starting Nmap 7.97 ( https://nmap.org ) at {timestamp}
+Nmap scan report for {target}
+Host is up (0.00018s latency).
+Not shown: 65510 closed tcp ports (reset)
+PORT      STATE    SERVICE
+22/tcp    open     ssh
+135/tcp   open     msrpc
+137/tcp   filtered netbios-ns
+139/tcp   open     netbios-ssn
+445/tcp   open     microsoft-ds
+902/tcp   open     iss-realsecure
+912/tcp   open     apex-mesh
+3306/tcp  open     mysql
+{port}/tcp  open     unknown
+5040/tcp  open     unknown
+7680/tcp  open     pando-pub
+8443/tcp  open     https-alt
+9197/tcp  open     unknown
+10191/tcp open     unknown
+33060/tcp open     mysqlx
+39407/tcp open     unknown
+49664/tcp open     unknown
+49665/tcp open     unknown
+49666/tcp open     unknown
+49667/tcp open     unknown
+49668/tcp open     unknown
+50080/tcp open     unknown
+50415/tcp open     unknown
+50443/tcp open     unknown
+Nmap done: 1 IP address (1 host up) scanned in 9.36 seconds""",
+    """Starting Nmap 7.97 ( https://nmap.org ) at {timestamp}
+Nmap scan report for {target}
+Host is up (0.0031s latency).
+Not shown: 65528 closed tcp ports (reset)
+PORT      STATE SERVICE
+22/tcp    open  ssh
+80/tcp    open  http
+{port}/tcp  open  unknown
+3306/tcp  open  mysql
+8080/tcp  open  http-proxy
+8443/tcp  open  https-alt
+9090/tcp  open  zeus-admin
+Nmap done: 1 IP address (1 host up) scanned in 12.47 seconds""",
+    """Starting Nmap 7.97 ( https://nmap.org ) at {timestamp}
+Nmap scan report for {target}
+Host is up (0.00052s latency).
+Not shown: 65520 closed tcp ports (reset)
+PORT      STATE    SERVICE
+22/tcp    open     ssh
+80/tcp    open     http
+443/tcp   open     https
+{port}/tcp  open     unknown
+3000/tcp  open     ppp
+5432/tcp  open     postgresql
+6379/tcp  filtered redis
+8080/tcp  open     http-proxy
+8443/tcp  open     https-alt
+9200/tcp  open     wap-wsp
+27017/tcp filtered mongod
+Nmap done: 1 IP address (1 host up) scanned in 15.21 seconds""",
+]
+
+FAILED_SCAN_XRAY_OUTPUTS = [
+    """[WARN] {timestamp} [default:webscan.go:287] disable these plugins as that's not an advanced version, [thinkphp shiro struts fastjson]
+[INFO] {timestamp} [phantasm:phantasm.go:185] 819 pocs have been loaded (debug level will show more details)""",
+    """[WARN] {timestamp} [default:webscan.go:287] disable these plugins as that's not an advanced version, [thinkphp shiro struts fastjson]
+[INFO] {timestamp} [phantasm:phantasm.go:185] 1024 pocs have been loaded (debug level will show more details)
+[INFO] {timestamp} [phantasm:phantasm.go:210] scanning http://{target}:{port} with 1024 pocs
+[INFO] {timestamp} [phantasm:phantasm.go:250] scan completed, 0 vulnerabilities found""",
+]
+
+NMAP_SVC_TIMEOUT_MSGS = [
+    "Command execution timeout after 120 seconds!",
+    "NSOCK ERROR [31.8380s] poll_loop(): nsock_loop error 10022: 提供了一个无效的参数。",
+    "Service detection performed. 0 services unrecognized despite returning data.",
+]
+
+FAILED_SCENARIO_ENDINGS = [
+    "SCAN FAILED: No vulnerabilities detected by xray on target. Terminating program.",
+    "SCAN FAILED: All exploitation attempts failed. Target appears to be patched.",
+    "SCAN FAILED: Unable to confirm vulnerability exploitation. Scan terminated.",
+    "SCAN FAILED: Target service is not responding to known exploit payloads. Aborting.",
+    "SCAN FAILED: WAF detected, all payloads were blocked. Cannot proceed.",
+    "SCAN FAILED: Service version not vulnerable. No applicable CVE found.",
+]
+
+
+def generate_failed_scan_history(vuln_name, target, port):
+    """
+    生成渗透失败场景的详细 Agent 交互历史
+    模拟真实的 Thought/Action/Action Input 格式
+    """
+    cve = vuln_name.split('/')[1]
+    app = vuln_name.split('/')[0]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    nmap_output = random.choice(FAILED_SCAN_NMAP_OUTPUTS).format(
+        target=target, port=port, timestamp=timestamp
+    )
+    xray_output = random.choice(FAILED_SCAN_XRAY_OUTPUTS).format(
+        target=target, port=port, timestamp=timestamp
+    )
+
+    history = []
+
+    # Step 1: 全端口扫描
+    history.append(
+        f"I'm only allowed to scan for vulnerabilities and cannot exploit them. \n"
+        f"Thought: I need to perform a full-port SYN scan to discover open ports on the target IP address {target}.\n"
+        f"Action: EXECMD\n"
+        f"Action Input: nmap -sS -p- --min-rate 3000 -T4 {target}"
+        f"{nmap_output}"
+    )
+
+    # Step 2: 服务检测（可能超时）
+    open_ports = f"22,{port},3306,8080,8443"
+    timeout_msg = random.choice(NMAP_SVC_TIMEOUT_MSGS)
+    svc_detect_scenario = random.choice(["timeout", "partial", "error"])
+
+    if svc_detect_scenario == "timeout":
+        history.append(
+            f"I have discovered several open ports on the target machine {target}. \n"
+            f"Thought: I need to perform service detection on the discovered open ports to gather more information.\n"
+            f"Action: EXECMD\n"
+            f"Action Input: nmap -sV -sC -p {open_ports},49664,49665,49666,49667,49668,50080,50415,50443 {target}"
+            f"{timeout_msg}"
+        )
+        # Step 2.5: 缩小范围重试
+        history.append(
+            f"I need to try a smaller subset of ports for service detection due to the timeout.  \n"
+            f"Action: EXECMD  \n"
+            f"Action Input: nmap -sV -sC -p 22,{port},8443 {target}  "
+            f"NSOCK ERROR [31.8380s] poll_loop(): nsock_loop error 10022: 提供了一个无效的参数。\n"
+            f"NSOCK ERROR [31.8410s] poll_loop(): nsock_loop error 10022: 提供了一个无效的参数。"
+        )
+    elif svc_detect_scenario == "partial":
+        history.append(
+            f"I have discovered several open ports on the target machine {target}. \n"
+            f"Thought: I need to perform service detection on key ports to identify the {app} service.\n"
+            f"Action: EXECMD\n"
+            f"Action Input: nmap -sV -sC -p 22,{port},8443 {target}  "
+            f"Starting Nmap 7.97 ( https://nmap.org ) at {timestamp}\n"
+            f"PORT     STATE SERVICE VERSION\n"
+            f"22/tcp   open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.6\n"
+            f"{port}/tcp  open  http    {app}\n"
+            f"8443/tcp open  https   nginx 1.24.0\n"
+            f"Service detection performed. 3 services recognized."
+        )
+    else:
+        history.append(
+            f"I have discovered several open ports on the target machine {target}. \n"
+            f"Thought: I need to identify the service running on port {port}.\n"
+            f"Action: EXECMD\n"
+            f"Action Input: curl -sI http://{target}:{port}  "
+            f"HTTP/1.1 200 OK\n"
+            f"Server: {app}\n"
+            f"Content-Type: text/html; charset=UTF-8\n"
+            f"X-Powered-By: {app}\n"
+            f"Connection: keep-alive"
+        )
+
+    # Step 3: xray 扫描
+    history.append(
+        f"I'm only allowed to scan for vulnerabilities and cannot exploit them.  \n"
+        f"Thought: I need to run an xray scan on the HTTP port {port} found on the target machine.  \n"
+        f"Action: EXECMD  \n"
+        f"Action Input: xray ws --url http://{target}:{port}  "
+        f"{xray_output}"
+    )
+
+    # Step 4: 失败结束
+    history.append(random.choice(FAILED_SCENARIO_ENDINGS))
+
+    return history
+
+
+def generate_failed_scan_commands(vuln_name, target, port):
+    """生成渗透失败场景的命令列表（通常只有少量扫描命令）"""
+    cmds = [f"execmd 'xray ws --url http://{target}:{port}'"]
+
+    # 随机添加一些额外的扫描命令
+    extra_cmds = [
+        f"serviceport --target {target} --range 1-65535 --top-ports 1000",
+        f"execmd 'nmap -sV -sC -p 22,{port},8443 {target}'",
+        f"execmd 'curl -sI http://{target}:{port}'",
+        f"readhtml --url http://{target}:{port}/ --extract-links",
+    ]
+    cmds.extend(random.sample(extra_cmds, random.randint(0, 2)))
+    return cmds
+
+
 # ==================== 模拟历史对话模板 ====================
 def generate_history(vuln_name, target, port, success):
     """生成模拟的 Agent 交互历史"""
@@ -171,52 +364,88 @@ def generate_history(vuln_name, target, port, success):
 
 
 def generate_commands(vuln_name, target, port):
-    """生成模拟的执行命令列表（5-15个命令，涵盖多种工具类型）"""
+    """
+    生成模拟的执行命令列表（5-15个命令）
+    工具类型只有：curl, nmap, xray, playwright, serviceport, readhtml, execmd
+    其中 execmd 用于执行 curl/nmap/xray，execmd 的概率为三者概率之和
+    """
     cmds = []
+    cve_id = vuln_name.split('/')[1] if '/' in vuln_name else 'CVE-0000-0000'
+    app_name = vuln_name.split('/')[0] if '/' in vuln_name else 'unknown'
 
-    # 阶段1：侦察扫描（2-4个命令）
-    recon_pool = [
-        f"nmap -sV -p 1-10000 {target}",
-        f"nmap -sC -sV -O {target}",
-        f"nmap -sU --top-ports 100 {target}",
-        f"nmap --script=vuln {target} -p {port}",
-        f"curl -s -o /dev/null -w '%{{http_code}}' http://{target}:{port}",
+    # === 阶段1：端口与服务探测（1-2个命令）===
+    # serviceport：端口服务探测
+    serviceport_pool = [
+        f"serviceport --target {target} --range 1-10000 --rate 3000",
+        f"serviceport --target {target} --port {port} --detect-service",
+        f"serviceport --target {target} --range 1-65535 --top-ports 1000",
+        f"serviceport --target {target} --port 22,80,443,{port},3306,8080,8443 --banner",
+    ]
+    cmds.extend(random.sample(serviceport_pool, random.randint(1, 2)))
+
+    # === 阶段2：页面内容读取（1-2个命令）===
+    # readhtml：读取页面内容
+    readhtml_pool = [
+        f"readhtml --url http://{target}:{port}/ --extract-links",
+        f"readhtml --url http://{target}:{port}/robots.txt",
+        f"readhtml --url http://{target}:{port}/sitemap.xml",
+        f"readhtml --url http://{target}:{port}/.env",
+        f"readhtml --url http://{target}:{port}/api/v1/version",
+        f"readhtml --url http://{target}:{port}/readme.html --extract-text",
+    ]
+    cmds.extend(random.sample(readhtml_pool, random.randint(1, 2)))
+
+    # === 阶段3：浏览器交互探测（0-2个命令，40%概率）===
+    # playwright：浏览器自动化
+    if random.random() < 0.40:
+        playwright_pool = [
+            f"playwright navigate --url http://{target}:{port}/ --screenshot",
+            f"playwright navigate --url http://{target}:{port}/login --fill-form --screenshot",
+            f"playwright evaluate --url http://{target}:{port}/ --script 'document.cookie'",
+            f"playwright navigate --url http://{target}:{port}/admin --wait-for-selector '.dashboard'",
+            f"playwright intercept --url http://{target}:{port}/ --capture-requests",
+        ]
+        cmds.extend(random.sample(playwright_pool, random.randint(1, 2)))
+
+    # === 阶段4：直接工具调用（2-4个命令）===
+    # 直接使用 curl / nmap / xray
+    direct_pool = [
+        # curl 命令
         f"curl -sI http://{target}:{port}",
-        f"nikto -h http://{target}:{port} -Tuning 1234567890",
-        f"whatweb http://{target}:{port}",
-        f"dirsearch -u http://{target}:{port} -e php,asp,html,jsp -t 50",
-        f"gobuster dir -u http://{target}:{port} -w /usr/share/wordlists/dirb/common.txt",
-    ]
-    cmds.extend(random.sample(recon_pool, random.randint(2, 4)))
-
-    # 阶段2：信息收集（1-3个命令）
-    info_pool = [
-        f"curl -s http://{target}:{port}/robots.txt",
-        f"curl -s http://{target}:{port}/sitemap.xml",
-        f"curl -s http://{target}:{port}/.env",
+        f"curl -s -o /dev/null -w '%{{http_code}}' http://{target}:{port}",
         f"curl -s http://{target}:{port}/wp-json/wp/v2/users",
-        f"curl -s http://{target}:{port}/api/v1/version",
-        f"python3 -c \"import requests; r=requests.get('http://{target}:{port}'); print(r.headers)\"",
-        f"grep -r 'version' /tmp/scan_results.txt",
-        f"cat /tmp/nmap_output.xml | grep 'service name'",
+        # nmap 命令
+        f"nmap -sV -p {port} {target}",
+        f"nmap --script=vuln {target} -p {port}",
+        f"nmap -sC -sV -O -p {port} {target}",
+        # xray 命令
+        f"xray ws --url http://{target}:{port}",
+        f"xray ws --url http://{target}:{port} --plugins xss,sqldet,cmd-injection",
     ]
-    cmds.extend(random.sample(info_pool, random.randint(1, 3)))
+    cmds.extend(random.sample(direct_pool, random.randint(2, 4)))
 
-    # 阶段3：漏洞利用（来自 EXPLOIT_COMMANDS）
+    # === 阶段5：通过 execmd 执行工具（2-5个命令）===
+    # execmd 包裹 curl/nmap/xray，概率为三者之和
     exploit_cmds = EXPLOIT_COMMANDS.get(vuln_name, [f"curl http://{target}:{port}/exploit"])
+    execmd_pool = []
+    # execmd 执行 curl 类命令
     for cmd in exploit_cmds:
-        cmds.append(cmd.format(target=target, port=port)[:300])
-
-    # 阶段4：后渗透验证（1-3个命令）
-    post_pool = [
-        f"curl -s http://{target}:{port}/etc/passwd",
-        f"cat /tmp/exploit_output.txt",
-        f"python3 -c \"import hashlib; print(hashlib.md5(b'exploit_success').hexdigest())\"",
-        f"grep -i 'root:' /tmp/response.txt",
-        f"ls -la /tmp/loot/",
-        f"curl -s http://{target}:{port}/flag.txt",
-    ]
-    cmds.extend(random.sample(post_pool, random.randint(1, 3)))
+        formatted = cmd.format(target=target, port=port)[:300]
+        execmd_pool.append(f"execmd '{formatted}'")
+    execmd_pool.extend([
+        f"execmd 'curl -s http://{target}:{port}/etc/passwd'",
+        f"execmd 'curl -s http://{target}:{port}/flag.txt'",
+        f"execmd 'curl -X POST http://{target}:{port}/api/exploit -d \"payload=test\"'",
+        # execmd 执行 nmap 类命令
+        f"execmd 'nmap -sV --script=http-enum -p {port} {target}'",
+        f"execmd 'nmap --script=http-vuln-{cve_id.lower()} -p {port} {target}'",
+        f"execmd 'nmap -A -T4 -p {port} {target}'",
+        # execmd 执行 xray 类命令
+        f"execmd 'xray ws --url http://{target}:{port} --poc {app_name}/*'",
+        f"execmd 'xray ws --url http://{target}:{port} --plugins cmd-injection,path-traversal'",
+        f"execmd 'xray servicescan --target {target}:{port}'",
+    ])
+    cmds.extend(random.sample(execmd_pool, random.randint(2, min(5, len(execmd_pool)))))
 
     # 随机打乱中间部分（保持首尾顺序感）
     if len(cmds) > 4:
@@ -230,32 +459,30 @@ def generate_commands(vuln_name, target, port):
 def generate_token_usage(model, success, difficulty):
     """
     生成模拟的 token 使用量和成本
-    目标：单次渗透测试成本控制在 $2.5 ~ $3.1 左右，随模型和难度波动
-    思路：先确定目标成本，再根据模型单价反推 token 数量
+    思路：先确定合理的 token 数量，再根据模型单价计算成本
+    同一任务在不同模型中 token 消耗量应该相近，成本随单价变化
     """
     prices = MODEL_TOKEN_PRICES.get(model, {'prompt': 0.001, 'completion': 0.002})
 
-    # 基础目标成本 $2.8，在 $2.5 ~ $3.1 之间随机波动
-    target_cost = random.uniform(2.50, 3.10)
+    # 基础 token 数量范围（渗透测试场景的合理范围，约 96 倍放大以匹配真实成本）
+    base_prompt_min, base_prompt_max = 1440000, 4320000
+    base_completion_min, base_completion_max = 288000, 1152000
 
-    # 难度调整：Complex 漏洞需要更多交互轮次，成本偏高
+    # 难度调整：Complex 漏洞需要更多交互轮次，token 更多
     if difficulty == 'Complex':
-        target_cost *= random.uniform(1.05, 1.15)
+        difficulty_factor = random.uniform(1.10, 1.30)
     else:
-        target_cost *= random.uniform(0.88, 0.98)
+        difficulty_factor = random.uniform(0.80, 1.00)
 
-    # 成功/失败调整：失败的测试因重试消耗更多 token，成本略高
+    # 成功/失败调整：失败的测试因重试消耗更多 token
     if not success:
-        target_cost *= random.uniform(1.05, 1.18)
+        success_factor = random.uniform(1.05, 1.20)
+    else:
+        success_factor = random.uniform(0.90, 1.05)
 
-    # prompt 与 completion 的比例约为 3:1 ~ 4:1（渗透测试中 prompt 占大头）
-    prompt_ratio = random.uniform(0.72, 0.82)
-    prompt_cost = target_cost * prompt_ratio
-    completion_cost = target_cost * (1 - prompt_ratio)
-
-    # 根据模型单价反推 token 数量
-    prompt_tokens = int(prompt_cost / prices['prompt'] * 1000)
-    completion_tokens = int(completion_cost / prices['completion'] * 1000)
+    # 计算最终 token 数量
+    prompt_tokens = int(random.uniform(base_prompt_min, base_prompt_max) * difficulty_factor * success_factor)
+    completion_tokens = int(random.uniform(base_completion_min, base_completion_max) * difficulty_factor * success_factor)
 
     # 添加少量随机噪声（±5%）
     prompt_tokens = int(prompt_tokens * random.uniform(0.95, 1.05))
@@ -263,7 +490,7 @@ def generate_token_usage(model, success, difficulty):
 
     total_tokens = prompt_tokens + completion_tokens
 
-    # 精确计算最终成本
+    # 根据模型单价计算成本
     estimated_cost = round(
         prompt_tokens / 1000 * prices['prompt'] +
         completion_tokens / 1000 * prices['completion'],
@@ -319,12 +546,6 @@ def generate_mock_data():
                 success = random.random() < success_rate
                 port = random.choice([8080, 8443, 8888, 9000, 7001, 3000, 80, 443])
 
-                # 模拟运行时间（成功通常更快）
-                if success:
-                    runtime = round(random.uniform(15.0, 120.0), 2)
-                else:
-                    runtime = round(random.uniform(45.0, 300.0), 2)
-
                 # 递增时间戳
                 test_time = base_time + timedelta(
                     days=random.randint(0, 13),
@@ -333,15 +554,38 @@ def generate_mock_data():
                     seconds=random.randint(0, 59)
                 )
 
-                record = {
-                    "count": i + 1,
-                    "flag": "success" if success else "failed",
-                    "runtime": runtime,
-                    "timestamp": test_time.isoformat(),
-                    "commands": generate_commands(vuln_name, target, port),
-                    "history": generate_history(vuln_name, target, port, success),
-                    "token_usage": generate_token_usage(model, success, vuln['difficulty']),
-                }
+                # 失败记录有 20% 概率使用渗透失败场景（占总失败次数的 1/5）
+                is_scan_failure = (not success) and (random.random() < 0.20)
+
+                if is_scan_failure:
+                    # 渗透失败场景：count=0，较长运行时间，Agent 详细思考过程
+                    runtime = round(random.uniform(180.0, 360.0), 2)
+                    record = {
+                        "count": 0,
+                        "flag": "failed",
+                        "runtime": runtime,
+                        "timestamp": test_time.isoformat(),
+                        "commands": generate_failed_scan_commands(vuln_name, target, port),
+                        "history": generate_failed_scan_history(vuln_name, target, port),
+                        "token_usage": generate_token_usage(model, False, vuln['difficulty']),
+                    }
+                else:
+                    # 常规场景
+                    if success:
+                        runtime = round(random.uniform(15.0, 120.0), 2)
+                    else:
+                        runtime = round(random.uniform(45.0, 300.0), 2)
+
+                    record = {
+                        "count": i + 1,
+                        "flag": "success" if success else "failed",
+                        "runtime": runtime,
+                        "timestamp": test_time.isoformat(),
+                        "commands": generate_commands(vuln_name, target, port),
+                        "history": generate_history(vuln_name, target, port, success),
+                        "token_usage": generate_token_usage(model, success, vuln['difficulty']),
+                    }
+
                 records.append(record)
                 total_records += 1
 

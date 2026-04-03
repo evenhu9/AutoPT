@@ -92,6 +92,13 @@ def load_results():
                         for entry in reader:
                             entry['source_file'] = os.path.relpath(filepath, RESULT_DIR)
                             entry['model'] = os.path.basename(root)
+                            # 从文件名解析漏洞名称，如 thinkphp_CVE-2019-9082.jsonl -> thinkphp/CVE-2019-9082
+                            fname = os.path.splitext(f)[0]  # 去掉 .jsonl
+                            parts = fname.split('_', 1)  # 按第一个下划线分割
+                            if len(parts) == 2:
+                                entry['vuln_name'] = parts[0] + '/' + parts[1]
+                            else:
+                                entry['vuln_name'] = fname
                             results.append(entry)
                 except:
                     pass
@@ -289,25 +296,22 @@ def get_stats():
 
         # 统计工具类型
         for cmd in cmds:
-            cmd_str = str(cmd).strip().lower()
-            if 'nmap' in cmd_str:
+            cmd_str = str(cmd).strip()
+            cmd_lower = cmd_str.lower()
+            if cmd_lower.startswith('execmd ') or cmd_lower.startswith("execmd '") or cmd_lower.startswith('execmd "'):
+                tool_type_counter['execmd'] = tool_type_counter.get('execmd', 0) + 1
+            elif cmd_lower.startswith('playwright '):
+                tool_type_counter['playwright'] = tool_type_counter.get('playwright', 0) + 1
+            elif cmd_lower.startswith('serviceport '):
+                tool_type_counter['serviceport'] = tool_type_counter.get('serviceport', 0) + 1
+            elif cmd_lower.startswith('readhtml '):
+                tool_type_counter['readhtml'] = tool_type_counter.get('readhtml', 0) + 1
+            elif 'nmap' in cmd_lower:
                 tool_type_counter['nmap'] = tool_type_counter.get('nmap', 0) + 1
-            elif 'xray' in cmd_str:
+            elif 'xray' in cmd_lower:
                 tool_type_counter['xray'] = tool_type_counter.get('xray', 0) + 1
-            elif 'curl' in cmd_str:
+            elif 'curl' in cmd_lower:
                 tool_type_counter['curl'] = tool_type_counter.get('curl', 0) + 1
-            elif 'sqlmap' in cmd_str:
-                tool_type_counter['sqlmap'] = tool_type_counter.get('sqlmap', 0) + 1
-            elif 'nikto' in cmd_str:
-                tool_type_counter['nikto'] = tool_type_counter.get('nikto', 0) + 1
-            elif 'metasploit' in cmd_str or 'msfconsole' in cmd_str:
-                tool_type_counter['metasploit'] = tool_type_counter.get('metasploit', 0) + 1
-            elif 'python' in cmd_str:
-                tool_type_counter['python'] = tool_type_counter.get('python', 0) + 1
-            elif 'cat ' in cmd_str or 'ls ' in cmd_str or 'grep ' in cmd_str:
-                tool_type_counter['shell'] = tool_type_counter.get('shell', 0) + 1
-            else:
-                tool_type_counter['other'] = tool_type_counter.get('other', 0) + 1
 
     # 计算平均值
     for m in model_tool_stats:

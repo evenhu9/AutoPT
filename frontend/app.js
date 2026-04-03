@@ -442,7 +442,7 @@ function renderResultsTable(data) {
         const tokenTotal = tu.total_tokens || 0;
         const tokenCost = tu.estimated_cost || 0;
         return `<tr><td><span style="color:var(--text-muted);font-size:12px;white-space:nowrap"><i class="ri-time-line" style="margin-right:3px"></i>${ts}</span></td>
-            <td><code style="color:var(--accent-cyan)">${r.source_file || `test_${i}`}</code></td>
+            <td><code style="color:var(--accent-cyan)">${r.vuln_name || r.source_file || `test_${i}`}</code></td>
             <td>${r.model || 'N/A'}</td>
             <td><span class="badge ${ok ? 'badge-success' : 'badge-danger'}">${ok ? '✓ 成功' : '✗ 失败'}</span></td>
             <td>${r.runtime ? r.runtime.toFixed(1) + 's' : 'N/A'}</td>
@@ -458,7 +458,7 @@ function filterResults() {
     clearBtn?.classList.toggle('visible', kw.length > 0);
     if (!kw) { renderResultsTable(_allResults); return; }
     renderResultsTable(_allResults.filter(r =>
-        (r.source_file || '').toLowerCase().includes(kw) ||
+        (r.vuln_name || r.source_file || '').toLowerCase().includes(kw) ||
         (r.model || '').toLowerCase().includes(kw) ||
         (r.flag === 'success' ? '成功 success' : '失败 failed').includes(kw)));
 }
@@ -725,15 +725,16 @@ function renderToolCallStats(stats) {
     if (ttd && Object.keys(ttd).length) {
         const maxCount = Math.max(...Object.values(ttd), 1);
         const toolIcons = {
-            nmap: 'ri-radar-line', xray: 'ri-scan-line', curl: 'ri-link',
-            sqlmap: 'ri-database-2-line', nikto: 'ri-search-eye-line',
-            metasploit: 'ri-bug-line', python: 'ri-code-s-slash-line',
-            shell: 'ri-terminal-line', other: 'ri-more-line'
+            execmd: 'ri-terminal-box-line', curl: 'ri-link',
+            nmap: 'ri-radar-line', xray: 'ri-scan-line',
+            playwright: 'ri-chrome-line', serviceport: 'ri-server-line',
+            readhtml: 'ri-file-code-line'
         };
         const toolColors = {
-            nmap: '#3b82f6', xray: '#06b6d4', curl: '#10b981',
-            sqlmap: '#ef4444', nikto: '#f59e0b', metasploit: '#8b5cf6',
-            python: '#ec4899', shell: '#64748b', other: '#94a3b8'
+            execmd: '#8b5cf6', curl: '#10b981',
+            nmap: '#3b82f6', xray: '#06b6d4',
+            playwright: '#ec4899', serviceport: '#f59e0b',
+            readhtml: '#64748b'
         };
         diffHtml += `<div class="tool-type-section">
             <div class="tool-type-title"><i class="ri-pie-chart-line" style="color:var(--accent-cyan)"></i> 工具类型分布</div>
@@ -820,7 +821,7 @@ function showResultDetail(index) {
     if (!r) return;
     const ok = r.flag === 'success';
     const ts = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN') : '未知';
-    $('modalTitle').textContent = `测试详情 - ${r.source_file || ''}`;
+    $('modalTitle').textContent = `测试详情 - ${r.vuln_name || r.source_file || ''}`;
     let html = `<div style="margin-bottom:12px">
         <span class="badge ${ok ? 'badge-success' : 'badge-danger'}" style="font-size:13px;padding:5px 14px">${ok ? '✓ 渗透成功' : '✗ 渗透失败'}</span>
         <span class="badge badge-info" style="margin-left:8px">${r.model || 'N/A'}</span></div>

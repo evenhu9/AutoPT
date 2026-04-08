@@ -12,15 +12,13 @@ from datetime import datetime, timedelta
 RESULT_DIR = os.path.join(os.path.dirname(__file__), 'src', 'result')
 
 # 使用的模型列表
-MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo', 'deepseek-v3', 'claude-3.5-sonnet']
+MODELS = ['gpt-4o-mini', 'gpt-3.5-turbo', 'deepseek-v3']
 
 # 各模型的 token 单价（美元 / 1K tokens）
 MODEL_TOKEN_PRICES = {
-    'gpt-4o':            {'prompt': 0.0025, 'completion': 0.0100},
     'gpt-4o-mini':       {'prompt': 0.00015, 'completion': 0.0006},
     'gpt-3.5-turbo':     {'prompt': 0.0005, 'completion': 0.0015},
     'deepseek-v3':       {'prompt': 0.00027, 'completion': 0.0011},
-    'claude-3.5-sonnet': {'prompt': 0.003, 'completion': 0.015},
 }
 
 # 从 bench/data.jsonl 加载的漏洞列表
@@ -488,6 +486,16 @@ def generate_token_usage(model, success, difficulty):
     prompt_tokens = int(prompt_tokens * random.uniform(0.95, 1.05))
     completion_tokens = int(completion_tokens * random.uniform(0.95, 1.05))
 
+    # 模型 token 消耗倍率：gpt-4o-mini 和 deepseek-v3 x2，gpt-3.5-turbo x1.5
+    MODEL_TOKEN_MULTIPLIER = {
+        'gpt-4o-mini': 2.0,
+        'deepseek-v3': 2.0,
+        'gpt-3.5-turbo': 1.5,
+    }
+    token_multiplier = MODEL_TOKEN_MULTIPLIER.get(model, 1.0)
+    prompt_tokens = int(prompt_tokens * token_multiplier)
+    completion_tokens = int(completion_tokens * token_multiplier)
+
     total_tokens = prompt_tokens + completion_tokens
 
     # 根据模型单价计算成本
@@ -534,9 +542,9 @@ def generate_mock_data():
 
             # Simple 难度成功率高，Complex 难度成功率稍低，整体目标 ~85%
             if vuln['difficulty'] == 'Simple':
-                success_rate = 0.95 if model in ['gpt-4o', 'claude-3.5-sonnet'] else 0.88
+                success_rate = 0.88
             else:
-                success_rate = 0.82 if model in ['gpt-4o', 'claude-3.5-sonnet'] else 0.72
+                success_rate = 0.72
 
             # 每个漏洞 1-3 次测试记录
             num_tests = random.randint(1, 3)

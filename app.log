@@ -1,0 +1,119 @@
+
+    ╔══════════════════════════════════════════╗
+    ║           AutoPT Web Console             ║
+    ║   基于LLM的自动化渗透测试平台            ║
+    ╠══════════════════════════════════════════╣
+    ║   访问地址: http://0.0.0.0:5000          
+    ║   操作系统: Linux x86_64
+    ╚══════════════════════════════════════════╝
+    
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://25.1.22.6:5000
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [13/Apr/2026 16:05:25] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [13/Apr/2026 16:05:37] "[33mGET /api/report HTTP/1.1[0m" 404 -
+21.214.208.15 - - [13/Apr/2026 16:05:38] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:05:38] "GET /api/results/stats HTTP/1.0" 200 -
+127.0.0.1 - - [13/Apr/2026 16:05:42] "[33mGET /api/report HTTP/1.1[0m" 404 -
+127.0.0.1 - - [13/Apr/2026 16:05:56] "GET /api/results/stats HTTP/1.1" 200 -
+127.0.0.1 - - [13/Apr/2026 16:06:01] "GET /api/results/stats HTTP/1.1" 200 -
+127.0.0.1 - - [13/Apr/2026 16:06:07] "GET /api/results/stats HTTP/1.1" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:08] "GET /api/results HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:08] "GET /api/results/stats HTTP/1.0" 200 -
+127.0.0.1 - - [13/Apr/2026 16:06:14] "GET /api/results/stats HTTP/1.1" 200 -
+127.0.0.1 - - [13/Apr/2026 16:06:36] "GET /api/results/stats HTTP/1.1" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:38] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:06:38] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:06:44] "[36mGET / HTTP/1.0[0m" 304 -
+21.214.208.15 - - [13/Apr/2026 16:06:44] "[36mGET /style.css HTTP/1.0[0m" 304 -
+21.214.208.15 - - [13/Apr/2026 16:06:44] "[36mGET /app.js HTTP/1.0[0m" 304 -
+21.214.208.15 - - [13/Apr/2026 16:06:44] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:06:44] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:06:44] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:44] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:48] "GET /api/docker/status HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:06:48] "GET /api/docker/envs HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:48] "GET /api/docker/envs HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:06:49] "GET /api/results HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:06:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:07:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:07:14] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:07:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:07:45] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:08:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:08:15] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:08:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:08:45] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:09:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:09:15] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:09:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:09:44] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:10:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:10:14] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:10:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:10:44] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:11:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:11:15] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:11:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:11:44] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:12:14] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:12:15] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:12:44] "GET /api/results HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:12:45] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:18:45] "GET /api/results HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:18:46] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:02] "GET /api/results HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:19:02] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:19:18] "[36mGET / HTTP/1.0[0m" 304 -
+21.214.208.8 - - [13/Apr/2026 16:19:19] "GET /app.js HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:19] "[36mGET /style.css HTTP/1.0[0m" 304 -
+21.214.208.8 - - [13/Apr/2026 16:19:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:19:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:19] "GET /api/config HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:19:49] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:19:49] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:20:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:20:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:20:19] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:20:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:20:49] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:20:49] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:21:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:21:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:21:19] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:21:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:21:49] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:21:49] "GET /api/config HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:22:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:22:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:22:19] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:22:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:22:49] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:22:49] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:23:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:23:19] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:23:19] "GET /api/config HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:23:49] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:23:49] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:23:50] "GET /api/config HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:24:19] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:24:20] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:24:20] "GET /api/config HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:25:05] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:25:05] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:25:05] "GET /api/config HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:26:04] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:26:04] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:26:05] "GET /api/config HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:27:04] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:27:04] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.15 - - [13/Apr/2026 16:27:05] "GET /api/config HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:28:04] "GET /api/results/stats HTTP/1.0" 200 -
+21.214.208.13 - - [13/Apr/2026 16:28:04] "GET /api/vulns HTTP/1.0" 200 -
+21.214.208.8 - - [13/Apr/2026 16:28:05] "GET /api/config HTTP/1.0" 200 -

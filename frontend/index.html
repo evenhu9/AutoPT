@@ -213,10 +213,12 @@
                                 <div class="rate-tabs">
                                     <button class="rate-tab active" data-tab="difficulty" onclick="switchPanelTab('rate','difficulty')"><i class="ri-bar-chart-line"></i> 按难度</button>
                                     <button class="rate-tab" data-tab="model" onclick="switchPanelTab('rate','model')"><i class="ri-robot-line"></i> 按模型</button>
+                                    <button class="rate-tab" data-tab="vulntable" onclick="switchPanelTab('rate','vulntable')"><i class="ri-table-line"></i> 详细统计</button>
                                 </div>
                             </div>
                             <div class="rate-tab-content active" id="rateTab-difficulty"><div class="difficulty-rate-panel" id="difficultyRatePanel"></div></div>
                             <div class="rate-tab-content" id="rateTab-model"><div class="model-rate-panel" id="modelRatePanel"></div></div>
+                            <div class="rate-tab-content" id="rateTab-vulntable"><div id="vulnPassRatePanel"><div class="trend-empty">暂无详细统计数据</div></div></div>
                         </div>
                         <div class="analytics-chart-section token-cost-section">
                             <div class="chart-title-bar">
@@ -241,6 +243,13 @@
                             <div class="tool-call-overview" id="toolCallOverview"></div>
                             <div class="rate-tab-content active" id="toolTab-difficulty"><div id="toolDiffPanel"></div></div>
                             <div class="rate-tab-content" id="toolTab-model"><div id="toolModelPanel"></div></div>
+                        </div>
+                        <!-- 失败概率分析卡片 -->
+                        <div class="analytics-chart-section failure-reason-section">
+                            <div class="chart-title-bar">
+                                <h4 class="chart-title"><i class="ri-error-warning-line"></i> 失败原因概率分析</h4>
+                            </div>
+                            <div id="failureReasonPanel"><div class="trend-empty">暂无失败原因数据</div></div>
                         </div>
                     </div></div>
                 </div>

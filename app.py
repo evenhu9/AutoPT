@@ -199,7 +199,7 @@ def get_stats():
             diff_tool[diff]['total_calls'] += n_calls; diff_tool[diff]['count'] += 1
 
         # 工具类型分类
-        tool_prefixes = {'execmd': 'execmd', 'playwright': 'playwright', 'serviceport': 'serviceport', 'readhtml': 'readhtml'}
+        tool_prefixes = {'playwright': 'playwright', 'serviceport': 'serviceport', 'readhtml': 'readhtml'}
         tool_keywords = {'nmap': 'nmap', 'xray': 'xray', 'curl': 'curl'}
         for cmd in cmds:
             cmd_lower = str(cmd).strip().lower()

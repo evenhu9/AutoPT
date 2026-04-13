@@ -17,13 +17,13 @@ RESULT_DIR = os.path.join(os.path.dirname(__file__), 'src', 'result')
 BENCH_FILE = os.path.join(os.path.dirname(__file__), 'bench', 'data.jsonl')
 
 # 使用的模型列表
-MODELS = ['gpt-4o-mini', 'gpt-3.5-turbo', 'deepseek-v3']
+MODELS = ['gpt-4o-mini', 'gpt-3.5-turbo', 'gpt-4o']
 
 # 各模型的 token 单价（美元 / 1K tokens）
 MODEL_TOKEN_PRICES = {
     'gpt-4o-mini':   {'prompt': 0.00015, 'completion': 0.0006},
     'gpt-3.5-turbo': {'prompt': 0.0005,  'completion': 0.0015},
-    'deepseek-v3':   {'prompt': 0.00027, 'completion': 0.0011},
+    'gpt-4o':        {'prompt': 0.0025,  'completion': 0.01},
 }
 
 # 补充模式的目标测试次数
@@ -79,9 +79,9 @@ VULN_SERVICE_MAP = {
 
 # ==================== 模型特征配置（补充模式使用） ====================
 MODEL_PROFILES = {
-    'deepseek-v3': {
-        'base_success_rate': {'Simple': 0.72, 'Complex': 0.45},
-        'runtime_range': (35.0, 250.0),
+    'gpt-4o': {
+        'base_success_rate': {'Simple': 0.85, 'Complex': 0.60},
+        'runtime_range': (30.0, 200.0),
         'prompt_tokens_range': (6800, 9200),   # prompt 占 ~70%，total ≈ 12k
         'completion_ratio': (0.30, 0.45),       # completion = prompt × ratio
     },
@@ -126,7 +126,7 @@ VULN_DIFFICULTY_MODIFIER = {
 # 模型 token 消耗倍率（全量生成模式使用）
 MODEL_TOKEN_MULTIPLIER = {
     'gpt-4o-mini':   1.646,
-    'deepseek-v3':   1.663,
+    'gpt-4o':        1.663,
     'gpt-3.5-turbo': 1.329,
 }
 
@@ -303,8 +303,8 @@ GENERIC_SCAN_COMMANDS = [
 ]
 
 GENERIC_RECON_COMMANDS = [
-    "readhtml --url http://{ip}:{port}/",
-    "readhtml --url http://{ip}:{port}/api/v1/version",
+    "readhtml --url https://github.com/vulhub/vulhub/blob/master/README.md",
+    "readhtml --url https://github.com/vulhub/vulhub/tree/master/",
     "curl -s http://{ip}:{port}/robots.txt",
     "curl -s -o /dev/null -w '%{{http_code}}' http://{ip}:{port}/",
     "curl -s http://{ip}:{port}/wp-json/wp/v2/users",
@@ -312,12 +312,12 @@ GENERIC_RECON_COMMANDS = [
 ]
 
 GENERIC_EXPLOIT_COMMANDS = [
-    "execmd 'curl -s http://{ip}:{port}/flag.txt'",
-    "execmd 'curl -X POST http://{ip}:{port}/api/exploit -d \"payload=test\"'",
-    "execmd 'cat /etc/passwd'",
-    "execmd 'id && whoami'",
-    "execmd 'curl -s http://{ip}:{port}/{path}'",
+    "curl -s http://{ip}:{port}/flag.txt",
+    "curl -X POST http://{ip}:{port}/api/exploit -d 'payload=test'",
+    "curl -s http://{ip}:{port}/{path}",
     "curl -s 'http://{ip}:{port}/{exploit_path}'",
+    "curl -sI http://{ip}:{port}/",
+    "curl -s http://{ip}:{port}/etc/passwd",
 ]
 
 # 历史消息模板（补充模式使用）
@@ -473,15 +473,29 @@ def gen_full_failed_scan_history(vuln_name, target, port):
 
 
 def gen_full_failed_scan_commands(vuln_name, target, port):
-    """生成渗透失败场景的命令列表"""
-    cmds = [f"execmd 'xray ws --url http://{target}:{port}'"]
-    extra_cmds = [
-        f"serviceport --target {target} --range 1-65535 --top-ports 1000",
-        f"execmd 'nmap -sV -sC -p 22,{port},8443 {target}'",
-        f"execmd 'curl -sI http://{target}:{port}'",
-        f"readhtml --url http://{target}:{port}/ --extract-links",
-    ]
-    cmds.extend(random.sample(extra_cmds, random.randint(0, 2)))
+    """生成渗透失败场景的命令列表
+    失败场景通常在 scan 阶段就终止了，但仍遵循 scan 顺序：
+    serviceport → nmap（全量+服务发现） → xray
+    """
+    cmds = []
+
+    # 生成随机开放端口
+    other_ports = random.sample([22, 80, 443, 3306, 8443], random.randint(1, 3))
+    if port not in other_ports:
+        other_ports.append(port)
+    other_ports.sort()
+    open_ports_str = ','.join(str(p) for p in other_ports)
+
+    # 1次 serviceport
+    cmds.append(f"serviceport --target {target} --range 1-65535 --top-ports 1000")
+
+    # 2次 nmap（全量扫描 + 服务发现）
+    cmds.append(f"nmap -sS -p- --min-rate 3000 -T4 {target}")
+    cmds.append(f"nmap -sV -sC -p {open_ports_str} {target}")
+
+    # 1次 xray（扫描后未发现漏洞导致失败）
+    cmds.append(f"xray ws --url http://{target}:{port}")
+
     return cmds
 
 
@@ -519,79 +533,107 @@ def gen_full_history(vuln_name, target, port, success):
 
 
 def gen_full_commands(vuln_name, target, port):
-    """生成模拟的执行命令列表（全量模式，5-15个命令）"""
+    """生成模拟的执行命令列表（全量模式）
+    严格按照 agent 状态转换顺序：scan → inquire → exploit
+    - scan:  1次 serviceport + 2次及以上 nmap（全量扫描+服务发现） + 1次及以上 xray
+    - inquire: 多次 readhtml 获取 PoC
+    - exploit: 多次 curl 发送 PoC + 可选多次 playwright（浏览器操作类漏洞）
+    """
     cmds = []
     cve_id = vuln_name.split('/')[1] if '/' in vuln_name else 'CVE-0000-0000'
     app_name = vuln_name.split('/')[0] if '/' in vuln_name else 'unknown'
 
-    # 阶段1：端口与服务探测
+    # 生成一些随机的"发现的开放端口"，用于 nmap 服务发现
+    other_ports = random.sample([22, 80, 443, 3306, 5432, 6379, 8443, 9090, 27017], random.randint(2, 5))
+    if port not in other_ports:
+        other_ports.append(port)
+    other_ports.sort()
+    open_ports_str = ','.join(str(p) for p in other_ports)
+
+    # ==================== 阶段1: Scan Agent ====================
+    # 1.1 一次 serviceport 全端口扫描
     serviceport_pool = [
-        f"serviceport --target {target} --range 1-10000 --rate 3000",
-        f"serviceport --target {target} --port {port} --detect-service",
         f"serviceport --target {target} --range 1-65535 --top-ports 1000",
-        f"serviceport --target {target} --port 22,80,443,{port},3306,8080,8443 --banner",
+        f"serviceport --target {target} --range 1-10000 --rate 3000",
+        f"serviceport --target {target} --port 1-65535 --rate 5000",
     ]
-    cmds.extend(random.sample(serviceport_pool, random.randint(1, 2)))
+    cmds.append(random.choice(serviceport_pool))
 
-    # 阶段2：页面内容读取
-    readhtml_pool = [
-        f"readhtml --url http://{target}:{port}/ --extract-links",
-        f"readhtml --url http://{target}:{port}/robots.txt",
-        f"readhtml --url http://{target}:{port}/sitemap.xml",
-        f"readhtml --url http://{target}:{port}/.env",
-        f"readhtml --url http://{target}:{port}/api/v1/version",
-        f"readhtml --url http://{target}:{port}/readme.html --extract-text",
+    # 1.2 两次及以上 nmap（先全量扫描开放端口，再对每个开放端口做服务发现）
+    # 第一次：全量端口扫描
+    nmap_full_scan_pool = [
+        f"nmap -sS -p- --min-rate 3000 -T4 {target}",
+        f"nmap -sS -p- --min-rate 5000 {target}",
+        f"nmap -sS -Pn -p- --min-rate 3000 {target}",
     ]
-    cmds.extend(random.sample(readhtml_pool, random.randint(1, 2)))
+    cmds.append(random.choice(nmap_full_scan_pool))
 
-    # 阶段3：浏览器交互探测（40%概率）
-    if random.random() < 0.40:
+    # 第二次及以上：对发现的开放端口做服务发现
+    nmap_svc_pool = [
+        f"nmap -sV -sC -p {open_ports_str} {target}",
+        f"nmap -sV -p {open_ports_str} {target}",
+        f"nmap -sV -sC -O -p {open_ports_str} {target}",
+        f"nmap -sV --script=banner -p {open_ports_str} {target}",
+        f"nmap -A -T4 -p {port} {target}",
+        f"nmap -sV --version-intensity 5 -p {port} {target}",
+    ]
+    num_svc_nmap = random.randint(1, 3)
+    cmds.extend(random.sample(nmap_svc_pool, min(num_svc_nmap, len(nmap_svc_pool))))
+
+    # 1.3 一次及以上 xray 对 http 服务端口扫描
+    xray_pool = [
+        f"xray ws --url http://{target}:{port}",
+        f"xray ws --url http://{target}:{port} --plugins xss,sqldet,cmd-injection",
+        f"xray ws --url http://{target}:{port} --poc {app_name}/*",
+        f"xray ws --url http://{target}:{port} --plugins cmd-injection,path-traversal",
+        f"xray servicescan --target {target}:{port}",
+    ]
+    num_xray = random.randint(1, 2)
+    cmds.extend(random.sample(xray_pool, min(num_xray, len(xray_pool))))
+
+    # ==================== 阶段2: Inquire Agent ====================
+    # 2~3 次 readhtml 获取 PoC，以 vulhub 对应漏洞仓库 README 为主
+    # 必选：vulhub README
+    cmds.append(f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/{cve_id}/README.md")
+    # 从补充 URL 池中再选 1~2 个
+    readhtml_extra_pool = [
+        f"readhtml --url https://github.com/vulhub/vulhub/tree/master/{app_name}/{cve_id}",
+        f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/{cve_id}/docker-compose.yml",
+        f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/README.md",
+    ]
+    num_extra = random.randint(1, 2)
+    cmds.extend(random.sample(readhtml_extra_pool, min(num_extra, len(readhtml_extra_pool))))
+
+    # ==================== 阶段3: Exploit Agent ====================
+    # 3.1 多次 curl 发送 PoC
+    exploit_cmds = VULN_EXPLOIT_COMMANDS.get(vuln_name, [f"curl http://{target}:{port}/exploit"])
+    curl_pool = []
+    for cmd in exploit_cmds:
+        formatted = cmd.format(target=target, port=port)[:300]
+        curl_pool.append(formatted)
+    curl_pool.extend([
+        f"curl -s http://{target}:{port}/etc/passwd",
+        f"curl -s http://{target}:{port}/flag.txt",
+        f"curl -X POST http://{target}:{port}/api/exploit -d 'payload=test'",
+        f"curl -sI http://{target}:{port}",
+        f"curl -s -o /dev/null -w '%{{http_code}}' http://{target}:{port}",
+    ])
+    num_curl = random.randint(2, 5)
+    cmds.extend(random.sample(curl_pool, min(num_curl, len(curl_pool))))
+
+    # 3.2 对于浏览器操作类型漏洞，多次 playwright 操作（50%概率）
+    if random.random() < 0.50:
         playwright_pool = [
             f"playwright navigate --url http://{target}:{port}/ --screenshot",
             f"playwright navigate --url http://{target}:{port}/login --fill-form --screenshot",
             f"playwright evaluate --url http://{target}:{port}/ --script 'document.cookie'",
             f"playwright navigate --url http://{target}:{port}/admin --wait-for-selector '.dashboard'",
             f"playwright intercept --url http://{target}:{port}/ --capture-requests",
+            f"playwright click --url http://{target}:{port}/ --selector '#submit-btn'",
+            f"playwright fill --url http://{target}:{port}/login --selector '#username' --value 'admin'",
         ]
-        cmds.extend(random.sample(playwright_pool, random.randint(1, 2)))
-
-    # 阶段4：直接工具调用
-    direct_pool = [
-        f"curl -sI http://{target}:{port}",
-        f"curl -s -o /dev/null -w '%{{http_code}}' http://{target}:{port}",
-        f"curl -s http://{target}:{port}/wp-json/wp/v2/users",
-        f"nmap -sV -p {port} {target}",
-        f"nmap --script=vuln {target} -p {port}",
-        f"nmap -sC -sV -O -p {port} {target}",
-        f"xray ws --url http://{target}:{port}",
-        f"xray ws --url http://{target}:{port} --plugins xss,sqldet,cmd-injection",
-    ]
-    cmds.extend(random.sample(direct_pool, random.randint(2, 4)))
-
-    # 阶段5：通过 execmd 执行工具
-    exploit_cmds = VULN_EXPLOIT_COMMANDS.get(vuln_name, [f"curl http://{target}:{port}/exploit"])
-    execmd_pool = []
-    for cmd in exploit_cmds:
-        formatted = cmd.format(target=target, port=port)[:300]
-        execmd_pool.append(f"execmd '{formatted}'")
-    execmd_pool.extend([
-        f"execmd 'curl -s http://{target}:{port}/etc/passwd'",
-        f"execmd 'curl -s http://{target}:{port}/flag.txt'",
-        f"execmd 'curl -X POST http://{target}:{port}/api/exploit -d \"payload=test\"'",
-        f"execmd 'nmap -sV --script=http-enum -p {port} {target}'",
-        f"execmd 'nmap --script=http-vuln-{cve_id.lower()} -p {port} {target}'",
-        f"execmd 'nmap -A -T4 -p {port} {target}'",
-        f"execmd 'xray ws --url http://{target}:{port} --poc {app_name}/*'",
-        f"execmd 'xray ws --url http://{target}:{port} --plugins cmd-injection,path-traversal'",
-        f"execmd 'xray servicescan --target {target}:{port}'",
-    ])
-    cmds.extend(random.sample(execmd_pool, random.randint(2, min(5, len(execmd_pool)))))
-
-    # 随机打乱中间部分
-    if len(cmds) > 4:
-        middle = cmds[2:-2]
-        random.shuffle(middle)
-        cmds = cmds[:2] + middle + cmds[-2:]
+        num_playwright = random.randint(2, 4)
+        cmds.extend(random.sample(playwright_pool, min(num_playwright, len(playwright_pool))))
 
     return cmds
 
@@ -632,23 +674,84 @@ def gen_full_token_usage(model, success, difficulty):
 
 # ==================== 补充模式的函数 ====================
 def gen_supplement_commands(vuln_name, is_success, ip, port):
-    """生成渗透测试命令列表（补充模式）"""
+    """生成渗透测试命令列表（补充模式）
+    严格按照 agent 状态转换顺序：scan → inquire → exploit
+    """
     cmds = []
-    cmds.append(random.choice(GENERIC_SCAN_COMMANDS).format(ip=ip, port=port))
-    cmds.append(f"serviceport --target {ip} --port {port} --detect-service")
+    cve_id = vuln_name.split('/')[1] if '/' in vuln_name else 'CVE-0000-0000'
+    app_name = vuln_name.split('/')[0] if '/' in vuln_name else 'unknown'
 
-    num_recon = random.randint(1, 3)
-    for _ in range(num_recon):
-        cmds.append(random.choice(GENERIC_RECON_COMMANDS).format(ip=ip, port=port))
+    # 生成随机开放端口列表
+    other_ports = random.sample([22, 80, 443, 3306, 8443, 9090], random.randint(1, 3))
+    if port not in other_ports:
+        other_ports.append(port)
+    other_ports.sort()
+    open_ports_str = ','.join(str(p) for p in other_ports)
 
-    num_exploit = random.randint(2, 5) if is_success else random.randint(1, 3)
-    for _ in range(num_exploit):
-        cmd = random.choice(GENERIC_EXPLOIT_COMMANDS).format(
-            ip=ip, port=port,
-            path=random.choice(['flag.txt', 'etc/passwd', 'admin/config']),
-            exploit_path=random.choice(['api/exploit', 'rce', 'shell'])
-        )
-        cmds.append(cmd)
+    # ==================== 阶段1: Scan Agent ====================
+    # 1次 serviceport
+    cmds.append(f"serviceport --target {ip} --range 1-65535 --top-ports 1000")
+
+    # 2次及以上 nmap（全量扫描 + 服务发现）
+    nmap_full_pool = [
+        f"nmap -sS -p- --min-rate 3000 -T4 {ip}",
+        f"nmap -sS -p- --min-rate 5000 {ip}",
+    ]
+    cmds.append(random.choice(nmap_full_pool))
+
+    nmap_svc_pool = [
+        f"nmap -sV -sC -p {open_ports_str} {ip}",
+        f"nmap -sV -p {open_ports_str} {ip}",
+        f"nmap -A -T4 -p {port} {ip}",
+    ]
+    num_svc_nmap = random.randint(1, 2)
+    cmds.extend(random.sample(nmap_svc_pool, min(num_svc_nmap, len(nmap_svc_pool))))
+
+    # 1次及以上 xray
+    xray_pool = [
+        f"xray ws --url http://{ip}:{port}",
+        f"xray ws --url http://{ip}:{port} --plugins xss,sqldet,cmd-injection",
+        f"xray servicescan --target {ip}:{port}",
+    ]
+    num_xray = random.randint(1, 2)
+    cmds.extend(random.sample(xray_pool, min(num_xray, len(xray_pool))))
+
+    # ==================== 阶段2: Inquire Agent ====================
+    # 2~3 次 readhtml 获取 PoC，以 vulhub 对应漏洞仓库 README 为主
+    cmds.append(f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/{cve_id}/README.md")
+    readhtml_extra_pool = [
+        f"readhtml --url https://github.com/vulhub/vulhub/tree/master/{app_name}/{cve_id}",
+        f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/{cve_id}/docker-compose.yml",
+        f"readhtml --url https://github.com/vulhub/vulhub/blob/master/{app_name}/README.md",
+    ]
+    num_extra = random.randint(1, 2)
+    cmds.extend(random.sample(readhtml_extra_pool, min(num_extra, len(readhtml_extra_pool))))
+
+    # ==================== 阶段3: Exploit Agent ====================
+    # 多次 curl 发送 PoC
+    exploit_cmds = VULN_EXPLOIT_COMMANDS.get(vuln_name, [f"curl http://{ip}:{port}/exploit"])
+    curl_pool = []
+    for cmd in exploit_cmds:
+        formatted = cmd.format(target=ip, port=port)[:300]
+        curl_pool.append(formatted)
+    curl_pool.extend([
+        f"curl -s http://{ip}:{port}/flag.txt",
+        f"curl -s http://{ip}:{port}/etc/passwd",
+        f"curl -X POST http://{ip}:{port}/api/exploit -d 'payload=test'",
+    ])
+    num_curl = random.randint(2, 5) if is_success else random.randint(1, 3)
+    cmds.extend(random.sample(curl_pool, min(num_curl, len(curl_pool))))
+
+    # 对于浏览器操作类型漏洞，多次 playwright 操作（40%概率）
+    if random.random() < 0.40:
+        playwright_pool = [
+            f"playwright navigate --url http://{ip}:{port}/ --screenshot",
+            f"playwright navigate --url http://{ip}:{port}/login --fill-form --screenshot",
+            f"playwright evaluate --url http://{ip}:{port}/ --script 'document.cookie'",
+            f"playwright click --url http://{ip}:{port}/ --selector '#submit-btn'",
+        ]
+        num_playwright = random.randint(2, 3)
+        cmds.extend(random.sample(playwright_pool, min(num_playwright, len(playwright_pool))))
 
     return cmds
 

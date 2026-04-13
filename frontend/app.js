@@ -109,7 +109,7 @@ async function loadDashboard() {
             $('statRate').textContent = (d.success_rate ?? 0).toFixed(2) + '%';
             $('statAvgTime').textContent = (d.avg_runtime ?? 0) + 's';
             if (ts) {
-                $('statTokenCost').textContent = '$' + (ts.avg_cost_per_test ?? 0).toFixed(6);
+                $('statTokenCost').textContent = '$' + (ts.avg_cost_per_test ?? 0).toFixed(4);
                 $('statTotalTokens').textContent = formatTokenCount(ts.avg_tokens_per_test ?? 0);
             }
         }
@@ -472,7 +472,8 @@ function renderTokenCost(stats) {
     if (!ts||!ts.total_tokens) { overviewEl.innerHTML=''; diffEl.innerHTML=modelEl.innerHTML='<div class="trend-empty">暂无 Token 数据</div>'; return; }
 
     overviewEl.innerHTML = renderMetricCards([
-        { icon:'ri-money-dollar-circle-line', bg:'rgba(245,158,11,0.15)', fg:'#f59e0b', value:'$'+ts.avg_cost_per_test.toFixed(6), label:'平均成本/次', highlight:true },
+        { icon:'ri-wallet-3-line', bg:'rgba(168,85,247,0.15)', fg:'#a855f7', value:'$'+ts.total_cost.toFixed(4), label:'总成本' },
+        { icon:'ri-money-dollar-circle-line', bg:'rgba(245,158,11,0.15)', fg:'#f59e0b', value:'$'+ts.avg_cost_per_test.toFixed(4), label:'平均成本/次' },
         { icon:'ri-stack-line', bg:'rgba(99,102,241,0.12)', fg:'#818cf8', value:formatTokenCount(ts.avg_tokens_per_test), label:'平均 Tokens/次' },
         { icon:'ri-exchange-line', bg:'rgba(16,185,129,0.12)', fg:'#10b981', value:formatTokenCount(ts.total_tokens), label:'总 Tokens' },
         { icon:'ri-file-list-3-line', bg:'rgba(239,68,68,0.12)', fg:'#ef4444', value:ts.total_cost>0?(ts.total_prompt_tokens/ts.total_tokens*100).toFixed(0)+'%':'0%', label:'Prompt 占比' },
@@ -515,7 +516,7 @@ function renderToolCallStats(stats) {
     const ttd = tcs.tool_type_distribution;
     if (ttd && Object.keys(ttd).length) {
         const maxCount=Math.max(...Object.values(ttd),1);
-        const toolMeta = { execmd:['ri-terminal-box-line','#8b5cf6'], curl:['ri-link','#10b981'], nmap:['ri-radar-line','#3b82f6'], xray:['ri-scan-line','#06b6d4'], playwright:['ri-chrome-line','#ec4899'], serviceport:['ri-server-line','#f59e0b'], readhtml:['ri-file-code-line','#64748b'] };
+        const toolMeta = { curl:['ri-link','#10b981'], nmap:['ri-radar-line','#3b82f6'], xray:['ri-scan-line','#06b6d4'], playwright:['ri-chrome-line','#ec4899'], serviceport:['ri-server-line','#f59e0b'], readhtml:['ri-file-code-line','#64748b'] };
         diffHtml += `<div class="tool-type-section"><div class="tool-type-title"><i class="ri-pie-chart-line" style="color:var(--accent-cyan)"></i> 工具类型分布</div><div class="tool-type-list">${
             Object.entries(ttd).map(([name,count]) => {
                 const [icon,color] = toolMeta[name]||['ri-tools-line','#818cf8'];

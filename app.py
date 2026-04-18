@@ -254,11 +254,11 @@ def get_stats():
     # 失败原因分类
     failure_reasons_list = ['wrong_command', 'failure_in_tools', 'security_review', 'context_limitation', 'give_up_early']
     reason_keywords = {
-        'wrong_command': ['invalid', 'syntax error', 'not found', 'unrecognized', 'unknown command', 'bad request', 'malformed', '格式错误', '无效命令', '命令错误'],
-        'failure_in_tools': ['工具失败', '执行失败', 'tool failed', 'tool error', 'timeout', 'connection refused', 'connection reset', '连接失败', '超时', 'timed out', 'error executing', '似乎已经修补', '未成功'],
-        'security_review': ['security review', 'blocked', 'forbidden', 'access denied', '安全审查', '拦截', '禁止访问', 'waf', 'firewall', '防火墙', 'rate limit', '频率限制', 'captcha'],
+        'wrong_command': ['invalid', 'syntax error', 'not found', 'unrecognized', 'unknown command', 'bad request', 'malformed', '格式错误', '无效命令', '命令错误', '执行失败', '超时', 'timeout', 'timed out'],
+        'failure_in_tools': ['工具失败', '工具执行异常', 'tool failed', 'tool error', 'tool crash', 'error executing tool', 'connection refused', 'connection reset'],
+        'security_review': ['security review', 'blocked', 'forbidden', 'access denied', '安全审查', '拦截', '禁止访问', 'waf', 'firewall', '防火墙', 'rate limit', '频率限制', 'captcha', '403'],
         'context_limitation': ['context limit', 'token limit', 'max tokens', 'context length', '上下文限制', 'truncat', '截断', 'too long', 'exceeded'],
-        'give_up_early': ['give up', 'abort', '放弃', '提前终止', '无法继续', 'cannot proceed', 'unable to', '未能', 'failed to exploit', '利用未成功', 'without confirmation', '未找到可利用'],
+        'give_up_early': ['give up', 'abort', '放弃', '提前终止', '无法继续', 'cannot proceed', 'unable to', '未能', 'failed to exploit', '利用未成功', 'without confirmation', '未找到可利用', '似乎已经修补', '条件不满足', '版本可能不受影响'],
     }
     valid_cmd_prefixes = ('serviceport', 'readhtml', 'execmd', 'curl', 'nmap', 'xray', 'playwright', 'wget', 'python', 'nikto')
 
@@ -288,7 +288,7 @@ def get_stats():
             reasons.add('context_limitation')
         # 默认分类
         if not reasons:
-            reasons.add('give_up_early' if len(commands) <= 3 else 'failure_in_tools' if len(commands) > 10 else 'wrong_command')
+            reasons.add('give_up_early' if len(commands) <= 5 else 'wrong_command')
 
         for reason in reasons:
             if reason in failure_reason_stats[model]['reasons']:

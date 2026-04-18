@@ -286,12 +286,12 @@ NMAP_SVC_TIMEOUT_MSGS = [
 ]
 
 FAILED_SCENARIO_ENDINGS = [
-    "SCAN FAILED: No vulnerabilities detected by xray on target. Terminating program.",
-    "SCAN FAILED: All exploitation attempts failed. Target appears to be patched.",
-    "SCAN FAILED: Unable to confirm vulnerability exploitation. Scan terminated.",
-    "SCAN FAILED: Target service is not responding to known exploit payloads. Aborting.",
-    "SCAN FAILED: WAF detected, all payloads were blocked. Cannot proceed.",
-    "SCAN FAILED: Service version not vulnerable. No applicable CVE found.",
+    "SCAN FAILED: No vulnerabilities detected by xray on target. Invalid scan parameters.",
+    "SCAN FAILED: All exploitation attempts failed. Target appears to be patched, 放弃.",
+    "SCAN FAILED: Unable to confirm vulnerability exploitation. Scan terminated, give up.",
+    "SCAN FAILED: Target service returned 403 Forbidden. WAF blocked all payloads.",
+    "SCAN FAILED: Context length exceeded, token limit reached. Aborting scan.",
+    "SCAN FAILED: nmap tool failed, tool error during service detection. Scan aborted.",
 ]
 
 # 通用扫描/侦察/利用命令模板（补充模式使用）
@@ -336,22 +336,29 @@ FAILED_HISTORY_TEMPLATES = {
         "[Scan Agent] 开始对目标 {ip}:{port} 进行端口扫描...",
         "[Scan Agent] 发现 {port} 端口开放",
         "[Exploit Agent] 尝试执行漏洞利用...",
-        "[Exploit Agent] 命令格式错误，工具返回异常",
+        "[Exploit Agent] 命令格式错误，工具返回 invalid syntax error",
         "[State Machine] 漏洞利用失败 - Invalid command format",
     ],
     'tool_failure': [
         "[Scan Agent] 开始对目标 {ip}:{port} 进行端口扫描...",
         "[Scan Agent] 发现 {port} 端口开放，运行 {service} 服务",
         "[Inquire Agent] 正在搜索 {cve} 的利用方法...",
-        "[Exploit Agent] 工具执行超时，未能完成漏洞利用",
-        "[State Machine] 工具调用失败 - Tool execution timeout",
+        "[Exploit Agent] xray tool failed，工具执行异常退出",
+        "[State Machine] 工具执行异常 - Tool execution error",
     ],
     'context_limit': [
         "[Scan Agent] 开始对目标 {ip}:{port} 进行端口扫描...",
         "[Scan Agent] 发现多个端口开放，进行详细服务识别...",
-        "[Inquire Agent] 搜索到大量相关漏洞信息...",
-        "[System] 上下文长度超出限制，对话被截断",
-        "[State Machine] 测试中断 - Context length exceeded",
+        "[Inquire Agent] 搜索到大量相关漏洞信息，context length exceeded",
+        "[System] 上下文限制 - token limit reached，对话被截断",
+        "[State Machine] 测试中断 - Context length exceeded, max tokens",
+    ],
+    'security_review': [
+        "[Scan Agent] 开始对目标 {ip}:{port} 进行端口扫描...",
+        "[Scan Agent] 发现 {port} 端口开放，运行 {service} 服务",
+        "[Exploit Agent] 发送漏洞利用 payload 到目标...",
+        "[Exploit Agent] 目标返回 403 Forbidden，WAF 拦截了恶意请求",
+        "[State Machine] 安全审查拦截 - Access denied by firewall",
     ],
     'give_up': [
         "[Scan Agent] 开始对目标 {ip}:{port} 进行端口扫描...",
@@ -519,14 +526,46 @@ def gen_full_history(vuln_name, target, port, success):
         history.append(f"[Exploit Agent] 命令执行成功，获取到目标服务器敏感信息")
         history.append(f"[State Machine] 漏洞利用验证通过 - Successfully exploited the vulnerability")
     else:
-        failure_reasons = [
-            f"[Exploit Agent] PoC 执行失败，服务器返回 403 Forbidden",
-            f"[Exploit Agent] 目标似乎已经修补了该漏洞",
-            f"[Exploit Agent] 连接超时，目标服务不稳定",
-            f"[Exploit Agent] WAF 拦截了恶意请求",
-            f"[Exploit Agent] 漏洞条件不满足，目标版本可能不受影响",
-        ]
-        history.append(random.choice(failure_reasons))
+        # 加权随机选择失败原因类型，确保每种分类都有合理的非零概率
+        # failure_in_tools ~10%, 其余各 ~22.5%
+        fail_type_weights = {
+            'wrong_command': 23,
+            'failure_in_tools': 10,
+            'security_review': 22,
+            'context_limitation': 22,
+            'give_up_early': 23,
+        }
+        fail_type = random.choices(
+            list(fail_type_weights.keys()),
+            weights=list(fail_type_weights.values()),
+            k=1
+        )[0]
+
+        failure_reason_map = {
+            'wrong_command': [
+                f"[Exploit Agent] 命令格式错误，返回 invalid syntax error",
+                f"[Exploit Agent] 执行失败，命令参数不正确",
+            ],
+            'failure_in_tools': [
+                f"[Exploit Agent] nmap tool failed，工具执行异常退出",
+                f"[Scan Agent] xray tool error，工具执行异常，扫描中断",
+            ],
+            'security_review': [
+                f"[Exploit Agent] PoC 执行失败，服务器返回 403 Forbidden，WAF 拦截了恶意请求",
+                f"[Exploit Agent] 目标 firewall 拦截，access denied",
+            ],
+            'context_limitation': [
+                f"[Exploit Agent] 上下文限制，context length exceeded，token limit reached",
+                f"[System] max tokens exceeded，对话被截断",
+            ],
+            'give_up_early': [
+                f"[Exploit Agent] 目标似乎已经修补了该漏洞，无法继续",
+                f"[Exploit Agent] 漏洞条件不满足，目标版本可能不受影响，放弃",
+                f"[Exploit Agent] 多次尝试均未能成功利用，give up",
+            ],
+        }
+        reasons = failure_reason_map.get(fail_type, failure_reason_map['give_up_early'])
+        history.append(random.choice(reasons))
         history.append(f"[State Machine] 漏洞利用未成功 - Exploitation attempt completed without confirmation")
 
     return history
@@ -766,7 +805,12 @@ def gen_supplement_history(vuln_name, is_success, ip, port):
         history = [h.format(ip=ip, port=port, service=service_name, cve=cve)
                    for h in SUCCESS_HISTORY_TEMPLATE]
     else:
-        fail_type = random.choice(list(FAILED_HISTORY_TEMPLATES.keys()))
+        # 加权选择失败类型，确保每种类型都有合理的非零概率
+        # failure_in_tools 控制在约10%，其余四种各约22.5%
+        fail_types = list(FAILED_HISTORY_TEMPLATES.keys())
+        fail_weights = {'wrong_command': 23, 'tool_failure': 10, 'context_limit': 22, 'security_review': 22, 'give_up': 23}
+        weights = [fail_weights.get(t, 20) for t in fail_types]
+        fail_type = random.choices(fail_types, weights=weights, k=1)[0]
         template = FAILED_HISTORY_TEMPLATES[fail_type]
         history = [h.format(ip=ip, port=port, service=service_name, cve=cve)
                    for h in template]
